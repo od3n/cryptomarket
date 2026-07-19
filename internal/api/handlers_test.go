@@ -79,7 +79,7 @@ func newTestHandler() *Handler {
 			{ID: 1, CoinID: 1, PriceUSD: "65000", MarketCap: "1300000000000", Volume24h: "50000000000", Change24h: "2.5", Provider: "coingecko", CapturedAt: time.Now()},
 		},
 	}
-	return NewHandler(nil, coinRepo, snapshotRepo, nil, logger)
+	return NewHandler(nil, coinRepo, snapshotRepo, nil, nil, logger)
 }
 
 var testMetrics = telemetry.NewMetrics()
