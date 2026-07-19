@@ -64,9 +64,10 @@ func (p *CoinGeckoProvider) FetchMarketData(ctx context.Context, providerSymbols
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
 		return nil, &ProviderError{
-			Provider: providerName,
-			Message:  "failed to create request",
-			Err:      err,
+			Provider:  providerName,
+			Message:   "failed to create request",
+			Err:       err,
+			Permanent: true,
 		}
 	}
 	req.Header.Set("Accept", "application/json")
@@ -74,28 +75,42 @@ func (p *CoinGeckoProvider) FetchMarketData(ctx context.Context, providerSymbols
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
 		return nil, &ProviderError{
-			Provider: providerName,
-			Message:  "request failed",
-			Err:      err,
+			Provider:  providerName,
+			Message:   "request failed",
+			Err:       err,
+			Transient: true,
 		}
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return nil, &ProviderError{
+			Provider:    providerName,
+			StatusCode:  resp.StatusCode,
+			Message:     "rate limited",
+			RateLimited: true,
+		}
+	}
+
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		transient := resp.StatusCode >= 500
 		return nil, &ProviderError{
 			Provider:   providerName,
 			StatusCode: resp.StatusCode,
 			Message:    fmt.Sprintf("unexpected status: %s", string(body)),
+			Transient:  transient,
+			Permanent:  !transient,
 		}
 	}
 
 	var items []coingeckoMarketResponse
 	if err := json.NewDecoder(resp.Body).Decode(&items); err != nil {
 		return nil, &ProviderError{
-			Provider: providerName,
-			Message:  "failed to decode response",
-			Err:      err,
+			Provider:  providerName,
+			Message:   "failed to decode response",
+			Err:       err,
+			Permanent: true,
 		}
 	}
 
