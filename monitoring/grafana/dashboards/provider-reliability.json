@@ -1,0 +1,151 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Provider Success Ratio",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "provider:success_ratio:5m",
+          "legendFormat": "{{provider}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit", "max": 1, "min": 0 },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Provider Latency (p95)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "provider:latency_p95:5m",
+          "legendFormat": "{{provider}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Circuit Breaker State Timeline",
+      "type": "state-timeline",
+      "gridPos": { "h": 6, "w": 24, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "circuit_breaker_state",
+          "legendFormat": "{{name}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "Closed", "color": "green" }, "1": { "text": "Open", "color": "red" }, "2": { "text": "Half-Open", "color": "yellow" } } }
+          ]
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Rate Limit Events",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 14 },
+      "targets": [
+        {
+          "expr": "rate(provider_rate_limited_total[5m])",
+          "legendFormat": "{{provider}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ops" },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Fallback Events",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 14 },
+      "targets": [
+        {
+          "expr": "rate(provider_fallback_total[5m])",
+          "legendFormat": "Fallbacks",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(provider_switch_total[5m])",
+          "legendFormat": "Switches",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ops" },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Circuit Breaker Transitions",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
+      "targets": [
+        {
+          "expr": "rate(circuit_breaker_transitions_total[5m])",
+          "legendFormat": "{{name}} → {{to_state}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ops" },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Retry Attempts",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
+      "targets": [
+        {
+          "expr": "rate(retry_attempts_total[5m])",
+          "legendFormat": "Retries/s",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ops" },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Provider Request Duration Histogram",
+      "type": "histogram",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 30 },
+      "targets": [
+        {
+          "expr": "sum(rate(provider_request_duration_seconds_bucket[5m])) by (le)",
+          "legendFormat": "{{le}}",
+          "refId": "A",
+          "format": "heatmap"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["market-platform", "provider", "reliability"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "Provider Reliability",
+  "uid": "provider-reliability",
+  "version": 1
+}

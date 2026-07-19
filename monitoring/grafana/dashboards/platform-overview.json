@@ -1,0 +1,199 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "API Request Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_responses_total[5m])) by (status)",
+          "legendFormat": "{{status}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps" },
+        "overrides": []
+      }
+    },
+    {
+      "title": "API Error Rate (5xx)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_responses_total{status=~\"5..\"}[5m])) / sum(rate(http_responses_total[5m]))",
+          "legendFormat": "Error Rate",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "percentunit", "max": 1, "min": 0 },
+        "overrides": []
+      }
+    },
+    {
+      "title": "API Latency Percentiles",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "api:latency_p50:5m",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "api:latency_p95:5m",
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "expr": "api:latency_p99:5m",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Ingestion Success/Failure Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "rate(ingestion_success_total[5m])",
+          "legendFormat": "Success",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(ingestion_failure_total[5m])",
+          "legendFormat": "Failure",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ops" },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Active Provider",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 16 },
+      "targets": [
+        {
+          "expr": "provider_active",
+          "legendFormat": "{{provider}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Circuit Breaker States",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 16 },
+      "targets": [
+        {
+          "expr": "circuit_breaker_state",
+          "legendFormat": "{{name}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "Closed" }, "1": { "text": "Open" }, "2": { "text": "Half-Open" } } }
+          ]
+        },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Data Freshness",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 16 },
+      "targets": [
+        {
+          "expr": "count(data_freshness_status == 0)",
+          "legendFormat": "Fresh",
+          "refId": "A"
+        },
+        {
+          "expr": "count(data_freshness_status == 1)",
+          "legendFormat": "Delayed",
+          "refId": "B"
+        },
+        {
+          "expr": "count(data_freshness_status == 2)",
+          "legendFormat": "Stale",
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "title": "Realtime Active Connections",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 16 },
+      "targets": [
+        {
+          "expr": "realtime_active_connections",
+          "legendFormat": "Connections",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Realtime Events Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "targets": [
+        {
+          "expr": "rate(realtime_events_consumed_total[5m])",
+          "legendFormat": "Consumed",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(realtime_events_broadcast_total[5m])",
+          "legendFormat": "Broadcast",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ops" },
+        "overrides": []
+      }
+    },
+    {
+      "title": "Anomaly Detection",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "targets": [
+        {
+          "expr": "sum(rate(anomaly_detected_total[5m])) by (type)",
+          "legendFormat": "{{type}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ops" },
+        "overrides": []
+      }
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["market-platform", "overview"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "Platform Overview",
+  "uid": "platform-overview",
+  "version": 1
+}
