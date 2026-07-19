@@ -1,0 +1,188 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: market-ingestor
+  namespace: cryptomarket
+  labels:
+    app.kubernetes.io/name: market-ingestor
+    app.kubernetes.io/part-of: cryptomarket
+    app.kubernetes.io/component: ingestor
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: market-ingestor-config
+  namespace: cryptomarket
+  labels:
+    app.kubernetes.io/name: market-ingestor
+    app.kubernetes.io/part-of: cryptomarket
+    app.kubernetes.io/component: ingestor
+data:
+  APP_ENV: "production"
+  SERVICE_NAME: "market-ingestor"
+  LOG_LEVEL: "info"
+  REDIS_DB: "0"
+  INGESTION_INTERVAL: "60s"
+  PROVIDER_BASE_URL: "https://api.coingecko.com/api/v3"
+  PROVIDER_TIMEOUT: "10s"
+  PROVIDER_PRIMARY: "coingecko"
+  PROVIDER_FALLBACK: "coincap"
+  CB_FAILURE_THRESHOLD: "5"
+  CB_OPEN_DURATION: "30s"
+  CB_SUCCESS_THRESHOLD: "2"
+  RETRY_MAX_ATTEMPTS: "3"
+  RETRY_BASE_DELAY: "500ms"
+  RETRY_MAX_DELAY: "10s"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: market-ingestor-secrets
+  namespace: cryptomarket
+  labels:
+    app.kubernetes.io/name: market-ingestor
+    app.kubernetes.io/part-of: cryptomarket
+    app.kubernetes.io/component: ingestor
+type: Opaque
+stringData:
+  POSTGRES_DSN: "postgres://cryptouser:cryptopass@postgres:5432/cryptomarket?sslmode=require"
+  REDIS_ADDRESS: "redis:6379"
+  REDIS_PASSWORD: ""
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: market-ingestor
+  namespace: cryptomarket
+  labels:
+    app.kubernetes.io/name: market-ingestor
+    app.kubernetes.io/part-of: cryptomarket
+    app.kubernetes.io/component: ingestor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: market-ingestor
+      app.kubernetes.io/component: ingestor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: market-ingestor
+        app.kubernetes.io/part-of: cryptomarket
+        app.kubernetes.io/component: ingestor
+    spec:
+      serviceAccountName: market-ingestor
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      containers:
+        - name: market-ingestor
+          image: market-ingestor:latest
+          envFrom:
+            - configMapRef:
+                name: market-ingestor-config
+            - secretRef:
+                name: market-ingestor-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "pgrep -f service || exit 1"
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "pgrep -f service || exit 1"
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: market-ingestor
+  namespace: cryptomarket
+  labels:
+    app.kubernetes.io/name: market-ingestor
+    app.kubernetes.io/part-of: cryptomarket
+    app.kubernetes.io/component: ingestor
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: market-ingestor
+    app.kubernetes.io/component: ingestor
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: market-ingestor
+  namespace: cryptomarket
+  labels:
+    app.kubernetes.io/name: market-ingestor
+    app.kubernetes.io/part-of: cryptomarket
+    app.kubernetes.io/component: ingestor
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: market-ingestor
+      app.kubernetes.io/component: ingestor
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: market-ingestor
+  namespace: cryptomarket
+  labels:
+    app.kubernetes.io/name: market-ingestor
+    app.kubernetes.io/part-of: cryptomarket
+    app.kubernetes.io/component: ingestor
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: market-ingestor
+      app.kubernetes.io/component: ingestor
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

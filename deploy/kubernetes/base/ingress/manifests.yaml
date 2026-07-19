@@ -1,0 +1,65 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cryptomarket-ingress
+  namespace: cryptomarket
+  labels:
+    app.kubernetes.io/part-of: cryptomarket
+    app.kubernetes.io/component: ingress
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/enable-compression: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+    nginx.ingress.kubernetes.io/limit-rps: "50"
+    nginx.ingress.kubernetes.io/limit-connections: "100"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Frame-Options: DENY";
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-XSS-Protection: 1; mode=block";
+      more_set_headers "Strict-Transport-Security: max-age=31536000; includeSubDomains";
+      more_set_headers "Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'";
+      more_set_headers "Referrer-Policy: strict-origin-when-cross-origin";
+    nginx.ingress.kubernetes.io/cache-key: "$host$request_uri"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - cryptomarket.example.com
+        - api.cryptomarket.example.com
+        - realtime.cryptomarket.example.com
+      secretName: cryptomarket-tls
+  rules:
+    - host: cryptomarket.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: market-frontend
+                port:
+                  number: 80
+    - host: api.cryptomarket.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: market-api
+                port:
+                  number: 80
+    - host: realtime.cryptomarket.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: realtime-gateway
+                port:
+                  number: 80

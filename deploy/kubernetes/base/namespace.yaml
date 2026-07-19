@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cryptomarket
+  labels:
+    app.kubernetes.io/part-of: cryptomarket
+    istio-injection: disabled
