@@ -1,0 +1,113 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: cryptouser
+      POSTGRES_PASSWORD: cryptopass
+      POSTGRES_DB: cryptomarket
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cryptouser -d cryptomarket"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  migrate:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile
+      args:
+        SERVICE: api
+    command: ["migrate"]
+    environment:
+      POSTGRES_DSN: postgres://cryptouser:cryptopass@postgres:5432/cryptomarket?sslmode=disable
+      REDIS_ADDRESS: redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile
+      args:
+        SERVICE: api
+    ports:
+      - "8080:8080"
+    environment:
+      APP_ENV: development
+      SERVICE_NAME: market-api
+      HTTP_PORT: "8080"
+      LOG_LEVEL: info
+      POSTGRES_DSN: postgres://cryptouser:cryptopass@postgres:5432/cryptomarket?sslmode=disable
+      REDIS_ADDRESS: redis:6379
+      REDIS_PASSWORD: ""
+      REDIS_DB: "0"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  ingestor:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile
+      args:
+        SERVICE: ingestor
+    environment:
+      APP_ENV: development
+      SERVICE_NAME: market-ingestor
+      LOG_LEVEL: info
+      POSTGRES_DSN: postgres://cryptouser:cryptopass@postgres:5432/cryptomarket?sslmode=disable
+      REDIS_ADDRESS: redis:6379
+      REDIS_PASSWORD: ""
+      REDIS_DB: "0"
+      INGESTION_INTERVAL: "60s"
+      PROVIDER_BASE_URL: https://api.coingecko.com/api/v3
+      PROVIDER_TIMEOUT: "10s"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
