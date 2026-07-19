@@ -1,6 +1,6 @@
 # Crypto Market Data Platform
 
-A production-grade platform demonstrating backend engineering, SRE practices, infrastructure automation, and observability. Ingests cryptocurrency market data from public providers, normalizes and persists it, and exposes REST APIs with full monitoring. Phase 2 adds realtime delivery via Server-Sent Events and a market dashboard.
+A production-grade platform demonstrating backend engineering, SRE practices, infrastructure automation, and observability. Ingests cryptocurrency market data from public providers, normalizes and persists it, and exposes REST APIs with full monitoring. Phase 2 adds realtime delivery via Server-Sent Events and a market dashboard. Phase 3 adds multi-provider resilience with circuit breakers, fallback orchestration, SLOs, alerting, and incident readiness.
 
 ## Architecture
 
@@ -50,7 +50,7 @@ make smoke
 make smoke-realtime
 ```
 
-The stack starts: PostgreSQL, Redis, migrations, API (port 8080), Ingestor, Realtime Gateway (port 8081), Frontend (port 3000), and Prometheus (port 9090).
+The stack starts: PostgreSQL, Redis, migrations, API (port 8080), Ingestor, Realtime Gateway (port 8081), Frontend (port 3000), Prometheus (port 9090), Alertmanager (port 9093), Grafana (port 3001), and Mock Provider (port 8082).
 
 ### Local URLs
 
@@ -60,6 +60,9 @@ The stack starts: PostgreSQL, Redis, migrations, API (port 8080), Ingestor, Real
 | Market API | http://localhost:8080 |
 | Realtime Gateway | http://localhost:8081 |
 | Prometheus | http://localhost:9090 |
+| Alertmanager | http://localhost:9093 |
+| Grafana | http://localhost:3001 (admin/admin) |
+| Mock Provider | http://localhost:8082 |
 
 ## Environment Variables
 
@@ -76,6 +79,15 @@ The stack starts: PostgreSQL, Redis, migrations, API (port 8080), Ingestor, Real
 | `INGESTION_INTERVAL` | `60s` | Time between ingestion cycles |
 | `PROVIDER_BASE_URL` | `https://api.coingecko.com/api/v3` | Provider API base URL |
 | `PROVIDER_TIMEOUT` | `10s` | Provider HTTP timeout |
+| `PROVIDER_PRIMARY` | `coingecko` | Primary provider name |
+| `PROVIDER_FALLBACK` | `coincap` | Comma-separated fallback providers |
+| `PROVIDER_DISABLED` | *(empty)* | Comma-separated disabled providers |
+| `COINCAP_BASE_URL` | `https://api.coincap.io` | CoinCap API base URL |
+| `CIRCUIT_BREAKER_FAILURE_THRESHOLD` | `5` | Failures to open circuit |
+| `CIRCUIT_BREAKER_OPEN_DURATION` | `30s` | Time before half-open probe |
+| `RETRY_MAX_ATTEMPTS` | `3` | Max retry attempts |
+| `FRESHNESS_THRESHOLD` | `120s` | Fresh data threshold |
+| `STALE_THRESHOLD` | `300s` | Stale data threshold |
 
 ## API Endpoints
 
@@ -88,6 +100,7 @@ The stack starts: PostgreSQL, Redis, migrations, API (port 8080), Ingestor, Real
 | GET | `/coins/{symbol}` | Latest data for a coin |
 | GET | `/coins/{symbol}/history` | Paginated historical snapshots |
 | GET | `/providers/status` | Provider operational status |
+| GET | `/operations/status` | Full platform operational status |
 | GET | `/metrics` | Prometheus metrics |
 
 ### Realtime Endpoint
@@ -123,6 +136,13 @@ make lint-frontend  # Run frontend linting
 make fmt            # Format code
 make vet            # Run go vet
 make demo           # Start full stack with dashboard
+make test-resilience    # Run resilience tests
+make test-python        # Run Python SRE toolkit tests
+make incident-demo      # Run incident simulation
+make incident-reset     # Reset injected failures
+make mock-provider-up   # Start mock provider
+make prometheus-check   # Validate Prometheus config
+make load-test-resilience # Run k6 load tests
 ```
 
 ## Metrics
@@ -148,21 +168,18 @@ Available at `/metrics` in Prometheus format:
 
 ## Current Limitations
 
-- Single provider (CoinGecko) with no fallback
-- No authentication or rate limiting
-- No circuit breaker (basic retry only)
+- No authentication or API rate limiting
 - Local development focus; no production deployment yet
+- No cross-region replication or automated backups
 - Frontend tests require manual verification of SSE behavior
 
 ## Next Milestones
 
-1. Multiple provider support with fallback
-2. Circuit breaker and resilience patterns
-3. Kubernetes deployment with Helm
-4. Terraform infrastructure (AWS)
-5. Grafana dashboards, Loki logs, Tempo traces
-6. k6 load testing
-7. SRE toolkit (Python): backup verification, reconciliation, incident reporting
+1. Kubernetes deployment with Helm
+2. Terraform infrastructure (AWS)
+3. Loki logs, Tempo traces
+4. Authentication and API key management
+5. Automated backup verification
 
 ## Architecture Decision Records
 
@@ -172,6 +189,14 @@ Available at `/metrics` in Prometheus format:
 - [ADR 004: Redis Streams Consumer Group](docs/adr/004-redis-streams-consumer-group.md)
 - [ADR 005: Latest-State Delivery Policy](docs/adr/005-latest-state-delivery-policy.md)
 - [ADR 006: Frontend Framework and Deployment](docs/adr/006-frontend-framework-deployment.md)
+- [ADR 007: Provider Fallback Strategy](docs/adr/007-provider-fallback.md)
+- [ADR 008: Retry Ownership](docs/adr/008-retry-ownership.md)
+- [ADR 009: Circuit Breaker Pattern](docs/adr/009-circuit-breaker.md)
+- [ADR 010: Freshness Source of Truth](docs/adr/010-freshness-source.md)
+- [ADR 011: SLO Definitions](docs/adr/011-slo-definitions.md)
+- [ADR 012: Burn-Rate Alerting](docs/adr/012-burn-rate-alerting.md)
+- [ADR 013: Degraded Mode Semantics](docs/adr/013-degraded-mode-semantics.md)
+- [ADR 014: Failure Injection Safeguards](docs/adr/014-failure-injection-safeguards.md)
 
 ## License
 
