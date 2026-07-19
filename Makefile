@@ -1,4 +1,4 @@
-.PHONY: setup up down logs build run-api run-ingestor run-realtime run-frontend migrate seed test test-integration test-frontend test-e2e lint lint-frontend fmt vet openapi-validate smoke smoke-realtime build-frontend demo clean
+.PHONY: setup up down logs build run-api run-ingestor run-realtime run-frontend migrate seed test test-integration test-frontend test-e2e lint lint-frontend fmt vet openapi-validate smoke smoke-realtime build-frontend demo clean test-resilience test-provider-fallback mock-provider-up mock-provider-down alert-test prometheus-check slo-check incident-demo incident-reset reconcile load-test-resilience test-python
 
 # Variables
 APP_ENV ?= development
@@ -28,6 +28,7 @@ build:
 	CGO_ENABLED=0 go build -o bin/api ./cmd/api
 	CGO_ENABLED=0 go build -o bin/ingestor ./cmd/ingestor
 	CGO_ENABLED=0 go build -o bin/realtime ./cmd/realtime
+	CGO_ENABLED=0 go build -o bin/mockprovider ./cmd/mockprovider
 
 ## run-api: Run the API server locally
 run-api:
@@ -121,8 +122,81 @@ demo: up
 	@echo "API available at: http://localhost:8080"
 	@echo "Realtime gateway at: http://localhost:8081"
 	@echo "Prometheus at: http://localhost:9090"
+	@echo "Grafana at: http://localhost:3001 (admin/admin)"
+	@echo "Alertmanager at: http://localhost:9093"
 
 ## clean: Remove build artifacts and stop containers
 clean:
 	rm -rf bin/
 	$(DOCKER_COMPOSE) down -v --remove-orphans 2>/dev/null || true
+
+# ─── Phase 3: Resilience Engineering Targets ─────────────────────────────────
+
+## test-resilience: Run resilience-specific unit tests
+test-resilience:
+	CGO_ENABLED=0 go test -short -count=1 ./internal/resilience/... ./internal/provider/...
+
+## test-provider-fallback: Run provider fallback tests
+test-provider-fallback:
+	CGO_ENABLED=0 go test -short -count=1 -run "Fallback|Selector|CircuitBreaker" ./internal/...
+
+## test-python: Run Python SRE toolkit tests
+test-python:
+	cd sre-toolkit && python -m pytest tests/ -v
+
+## mock-provider-up: Start mock provider in success mode
+mock-provider-up:
+	$(DOCKER_COMPOSE) up -d mock-provider
+	@echo "Mock provider running at http://localhost:8082 (mode=success)"
+
+## mock-provider-down: Stop mock provider
+mock-provider-down:
+	$(DOCKER_COMPOSE) stop mock-provider
+	@echo "Mock provider stopped"
+
+## alert-test: Send test alert to Alertmanager
+alert-test:
+	@echo "Sending test alert to Alertmanager..."
+	@curl -sf -X POST http://localhost:9093/api/v2/alerts \
+		-H 'Content-Type: application/json' \
+		-d '[{"labels":{"alertname":"TestAlert","severity":"warning","service":"test"},"annotations":{"summary":"Test alert from Makefile"}}]' \
+		&& echo "Test alert sent successfully" \
+		|| echo "Failed to send test alert (is Alertmanager running?)"
+
+## prometheus-check: Validate Prometheus configuration
+prometheus-check:
+	@echo "Validating Prometheus configuration..."
+	@command -v promtool >/dev/null 2>&1 && \
+		promtool check config monitoring/prometheus/prometheus.yml && \
+		promtool check rules monitoring/prometheus/recording-rules.yml && \
+		promtool check rules monitoring/prometheus/alerts.yml \
+		|| echo "promtool not installed - skipping validation"
+
+## slo-check: Check current SLO status
+slo-check:
+	@echo "Checking SLO status..."
+	@curl -sf 'http://localhost:9090/api/v1/query?query=api:success_ratio:5m' | \
+		python3 -c "import sys,json; d=json.load(sys.stdin); r=d.get('data',{}).get('result',[]); print(f'API Success Ratio: {float(r[0][\"value\"][1]):.4f}' if r else 'No data available')" 2>/dev/null \
+		|| echo "Prometheus not available"
+
+## incident-demo: Run the incident demonstration script
+incident-demo:
+	@ALLOW_FAILURE_INJECTION=true ./scripts/incident-demo.sh
+
+## incident-reset: Reset all injected failures
+incident-reset:
+	@export ALLOW_FAILURE_INJECTION=true; \
+	python3 sre-toolkit/inject_failures.py --scenario provider_429 --cleanup 2>/dev/null || true; \
+	python3 sre-toolkit/inject_failures.py --scenario provider_500 --cleanup 2>/dev/null || true; \
+	python3 sre-toolkit/inject_failures.py --scenario redis_failure --cleanup 2>/dev/null || true; \
+	python3 sre-toolkit/inject_failures.py --scenario stale_data --cleanup 2>/dev/null || true; \
+	echo "All failures cleaned up"
+
+## reconcile: Run price reconciliation between providers
+reconcile:
+	cd sre-toolkit && python3 reconcile_prices.py --format text
+
+## load-test-resilience: Run k6 load and resilience tests
+load-test-resilience:
+	@command -v k6 >/dev/null 2>&1 || { echo "k6 not installed. See: https://k6.io/docs/getting-started/installation/"; exit 1; }
+	k6 run load-tests/resilience.js
