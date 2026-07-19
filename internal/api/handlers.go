@@ -25,6 +25,7 @@ type Handler struct {
 	db           *sql.DB
 	coinRepo     repository.CoinRepository
 	snapshotRepo repository.SnapshotRepository
+	syncLogRepo  repository.SyncLogRepository
 	cache        *cache.MarketCache
 	logger       *slog.Logger
 }
@@ -34,6 +35,7 @@ func NewHandler(
 	db *sql.DB,
 	coinRepo repository.CoinRepository,
 	snapshotRepo repository.SnapshotRepository,
+	syncLogRepo repository.SyncLogRepository,
 	cache *cache.MarketCache,
 	logger *slog.Logger,
 ) *Handler {
@@ -41,6 +43,7 @@ func NewHandler(
 		db:           db,
 		coinRepo:     coinRepo,
 		snapshotRepo: snapshotRepo,
+		syncLogRepo:  syncLogRepo,
 		cache:        cache,
 		logger:       logger,
 	}
@@ -265,4 +268,27 @@ func parseIntParam(r *http.Request, key string, defaultVal int) int {
 		return defaultVal
 	}
 	return n
+}
+
+// ProviderStatus returns the operational status of data providers.
+func (h *Handler) ProviderStatus(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	if h.syncLogRepo == nil {
+		writeJSON(w, http.StatusOK, PaginatedResponse{Data: []interface{}{}, Count: 0})
+		return
+	}
+
+	statuses, err := h.syncLogRepo.GetProviderStatus(ctx)
+	if err != nil {
+		h.logger.Error("failed to get provider status", slog.String("error", err.Error()))
+		writeError(w, http.StatusInternalServerError, "failed to retrieve provider status")
+		return
+	}
+
+	if statuses == nil {
+		statuses = []market.ProviderStatus{}
+	}
+
+	writeJSON(w, http.StatusOK, PaginatedResponse{Data: statuses, Count: len(statuses)})
 }

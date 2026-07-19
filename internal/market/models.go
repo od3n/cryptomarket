@@ -61,3 +61,12 @@ type LatestMarketData struct {
 	Provider   string    `json:"provider"`
 	CapturedAt time.Time `json:"captured_at"`
 }
+
+// ProviderStatus represents the operational status of a data provider.
+type ProviderStatus struct {
+	Provider          string     `json:"provider"`
+	LastSyncAt        *time.Time `json:"last_sync_at"`
+	LastDurationMs    *int64     `json:"last_duration_ms"`
+	LastStatus        string     `json:"last_status"`
+	RecentFailures    int        `json:"recent_failures"`
+}

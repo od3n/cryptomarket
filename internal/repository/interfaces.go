@@ -23,4 +23,5 @@ type SnapshotRepository interface {
 // SyncLogRepository defines operations on the provider_sync_logs table.
 type SyncLogRepository interface {
 	Insert(ctx context.Context, log *market.ProviderSyncLog) error
+	GetProviderStatus(ctx context.Context) ([]market.ProviderStatus, error)
 }

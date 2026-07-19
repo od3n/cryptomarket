@@ -69,8 +69,9 @@ func main() {
 	marketCache := cache.NewMarketCache(redisClient)
 	coinRepo := repository.NewPostgresCoinRepository(db)
 	snapshotRepo := repository.NewPostgresSnapshotRepository(db)
+	syncLogRepo := repository.NewPostgresSyncLogRepository(db)
 
-	handler := api.NewHandler(db, coinRepo, snapshotRepo, marketCache, logger)
+	handler := api.NewHandler(db, coinRepo, snapshotRepo, syncLogRepo, marketCache, logger)
 	middleware := api.NewMiddleware(logger, metrics)
 	router := api.NewRouter(handler, middleware)
 
