@@ -72,6 +72,7 @@ jobs:
           CGO_ENABLED=0 go build -o bin/api ./cmd/api
           CGO_ENABLED=0 go build -o bin/ingestor ./cmd/ingestor
           CGO_ENABLED=0 go build -o bin/realtime ./cmd/realtime
+          CGO_ENABLED=0 go build -o bin/mockprovider ./cmd/mockprovider
 
   frontend:
     name: Frontend
@@ -150,3 +151,80 @@ jobs:
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
+
+  python-sre-toolkit:
+    name: Python SRE Toolkit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sre-toolkit
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install ruff pytest
+          pip install -r requirements.txt 2>/dev/null || true
+
+      - name: Lint with ruff
+        run: ruff check .
+
+      - name: Run tests
+        run: pytest tests/ -v
+
+  monitoring-validation:
+    name: Monitoring Config Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install promtool and amtool
+        run: |
+          PROM_VERSION=2.51.0
+          curl -sL "https://github.com/prometheus/prometheus/releases/download/v${PROM_VERSION}/prometheus-${PROM_VERSION}.linux-amd64.tar.gz" | tar xz
+          cp prometheus-${PROM_VERSION}.linux-amd64/promtool /usr/local/bin/
+          AM_VERSION=0.27.0
+          curl -sL "https://github.com/prometheus/alertmanager/releases/download/v${AM_VERSION}/alertmanager-${AM_VERSION}.linux-amd64.tar.gz" | tar xz
+          cp alertmanager-${AM_VERSION}.linux-amd64/amtool /usr/local/bin/
+
+      - name: Validate Prometheus config
+        run: promtool check config monitoring/prometheus/prometheus.yml
+
+      - name: Validate recording rules
+        run: promtool check rules monitoring/prometheus/recording-rules.yml
+
+      - name: Validate alert rules
+        run: promtool check rules monitoring/prometheus/alerts.yml
+
+      - name: Validate Alertmanager config
+        run: amtool check-config monitoring/alertmanager/alertmanager.yml
+
+  grafana-dashboards:
+    name: Grafana Dashboard Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate dashboard JSON
+        run: |
+          for f in monitoring/grafana/dashboards/*.json; do
+            echo "Validating $f..."
+            python3 -c "import json; json.load(open('$f'))" || exit 1
+          done
+          echo "All dashboards valid."
+
+  docker-compose-validation:
+    name: Docker Compose Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate docker-compose.yml
+        run: docker compose config --quiet
+
+      - name: Build mock provider image
+        run: docker build -f deploy/docker/Dockerfile --build-arg SERVICE=mockprovider -t mock-provider:test .
