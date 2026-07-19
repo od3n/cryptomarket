@@ -106,6 +106,54 @@ services:
       - prometheus_data:/prometheus
     depends_on:
       - api
+      - realtime
+
+  realtime:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile
+      args:
+        SERVICE: realtime
+    ports:
+      - "8081:8081"
+    environment:
+      APP_ENV: development
+      SERVICE_NAME: realtime-gateway
+      HTTP_PORT: "8081"
+      LOG_LEVEL: info
+      REDIS_ADDRESS: redis:6379
+      REDIS_PASSWORD: ""
+      REDIS_DB: "0"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.frontend
+    ports:
+      - "3000:3000"
+    environment:
+      API_URL: http://api:8080
+      REALTIME_URL: http://realtime:8081
+      NEXT_PUBLIC_FRESH_THRESHOLD: "120"
+      NEXT_PUBLIC_STALE_THRESHOLD: "300"
+    depends_on:
+      api:
+        condition: service_healthy
+      realtime:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
 volumes:
   postgres_data:
