@@ -1,0 +1,31 @@
+title = "Gitleaks Configuration"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Global allowlist"
+paths = [
+  '''go\.sum''',
+  '''package-lock\.json''',
+  '''\.env\.example''',
+  '''deploy/kubernetes/base/.*/manifests\.yaml''',
+]
+
+[[rules]]
+id = "postgres-dsn"
+description = "PostgreSQL DSN"
+regex = '''postgres://[^:]+:[^@]+@[^/]+/'''
+keywords = ["postgres://"]
+
+[[rules]]
+id = "aws-access-key"
+description = "AWS Access Key ID"
+regex = '''AKIA[0-9A-Z]{16}'''
+keywords = ["AKIA"]
+
+[[rules]]
+id = "generic-api-key"
+description = "Generic API Key"
+regex = '''(?i)(api[_-]?key|apikey)\s*[=:]\s*['"]?[a-zA-Z0-9_\-]{20,}['"]?'''
+keywords = ["api_key", "apikey", "api-key"]
