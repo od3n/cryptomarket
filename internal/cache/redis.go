@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 
 	"github.com/crypto-market-platform/internal/market"
@@ -92,9 +93,39 @@ func (c *MarketCache) GetAllLatest(ctx context.Context, symbols []string) ([]mar
 	return results, nil
 }
 
+// PriceEvent is the canonical event schema published to the stream.
+type PriceEvent struct {
+	EventID     string `json:"event_id"`
+	EventType   string `json:"event_type"`
+	Symbol      string `json:"symbol"`
+	PriceUSD    string `json:"price_usd"`
+	MarketCap   string `json:"market_cap"`
+	Volume24h   string `json:"volume_24h"`
+	Change24h   string `json:"change_24h"`
+	Provider    string `json:"provider"`
+	ObservedAt  string `json:"observed_at"`
+	PublishedAt string `json:"published_at"`
+}
+
 // PublishEvent publishes a price update event to a Redis Stream.
+// It emits the full event schema while retaining the legacy "data" field wrapper
+// for backward compatibility with existing consumers.
 func (c *MarketCache) PublishEvent(ctx context.Context, data market.LatestMarketData) error {
-	payload, err := json.Marshal(data)
+	now := time.Now().UTC()
+	event := PriceEvent{
+		EventID:     uuid.New().String(),
+		EventType:   "market.price.updated",
+		Symbol:      data.Symbol,
+		PriceUSD:    data.PriceUSD,
+		MarketCap:   data.MarketCap,
+		Volume24h:   data.Volume24h,
+		Change24h:   data.Change24h,
+		Provider:    data.Provider,
+		ObservedAt:  data.CapturedAt.UTC().Format(time.RFC3339),
+		PublishedAt: now.Format(time.RFC3339),
+	}
+
+	payload, err := json.Marshal(event)
 	if err != nil {
 		return fmt.Errorf("marshal event: %w", err)
 	}
