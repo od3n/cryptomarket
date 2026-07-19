@@ -1,0 +1,15 @@
+.git
+bin/
+data/
+tmp/
+*.md
+docs/
+.github/
+monitoring/
+load-tests/
+deploy/
+sre-toolkit/
+frontend/
+scripts/
+.env
+.env.*
