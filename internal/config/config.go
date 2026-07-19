@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -23,6 +24,28 @@ type Config struct {
 	IngestionInterval time.Duration
 	ProviderBaseURL   string
 	ProviderTimeout   time.Duration
+
+	// Provider selection
+	ProviderPrimary  string
+	ProviderFallback []string
+	ProviderDisabled []string
+
+	// CoinCap provider
+	CoinCapBaseURL string
+
+	// Circuit breaker
+	CircuitBreakerFailureThreshold int
+	CircuitBreakerOpenDuration     time.Duration
+	CircuitBreakerSuccessThreshold int
+
+	// Retry
+	RetryMaxAttempts int
+	RetryBaseDelay   time.Duration
+	RetryMaxDelay    time.Duration
+
+	// Freshness
+	FreshnessThreshold time.Duration
+	StaleThreshold     time.Duration
 }
 
 // Load reads configuration from environment variables and returns a validated Config.
@@ -40,6 +63,23 @@ func Load() (*Config, error) {
 		IngestionInterval: getEnvDuration("INGESTION_INTERVAL", 60*time.Second),
 		ProviderBaseURL:   getEnv("PROVIDER_BASE_URL", "https://api.coingecko.com/api/v3"),
 		ProviderTimeout:   getEnvDuration("PROVIDER_TIMEOUT", 10*time.Second),
+
+		ProviderPrimary:  getEnv("PROVIDER_PRIMARY", "coingecko"),
+		ProviderFallback: getEnvList("PROVIDER_FALLBACK", []string{"coincap"}),
+		ProviderDisabled: getEnvList("PROVIDER_DISABLED", nil),
+
+		CoinCapBaseURL: getEnv("COINCAP_BASE_URL", "https://api.coincap.io"),
+
+		CircuitBreakerFailureThreshold: getEnvInt("CB_FAILURE_THRESHOLD", 5),
+		CircuitBreakerOpenDuration:     getEnvDuration("CB_OPEN_DURATION", 30*time.Second),
+		CircuitBreakerSuccessThreshold: getEnvInt("CB_SUCCESS_THRESHOLD", 2),
+
+		RetryMaxAttempts: getEnvInt("RETRY_MAX_ATTEMPTS", 3),
+		RetryBaseDelay:   getEnvDuration("RETRY_BASE_DELAY", 500*time.Millisecond),
+		RetryMaxDelay:    getEnvDuration("RETRY_MAX_DELAY", 10*time.Second),
+
+		FreshnessThreshold: getEnvDuration("FRESHNESS_THRESHOLD", 120*time.Second),
+		StaleThreshold:     getEnvDuration("STALE_THRESHOLD", 300*time.Second),
 	}
 
 	if err := cfg.validate(); err != nil {
@@ -92,4 +132,23 @@ func getEnvDuration(key string, fallback time.Duration) time.Duration {
 		}
 	}
 	return fallback
+}
+
+func getEnvList(key string, fallback []string) []string {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	parts := strings.Split(v, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	if len(result) == 0 {
+		return fallback
+	}
+	return result
 }
