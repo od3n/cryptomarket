@@ -15,13 +15,14 @@ import (
 
 // Ingestor performs a single ingestion cycle: fetch, validate, persist, cache, publish.
 type Ingestor struct {
-	coinRepo     repository.CoinRepository
-	snapshotRepo repository.SnapshotRepository
-	syncLogRepo  repository.SyncLogRepository
-	provider     provider.Provider
-	cache        *cache.MarketCache
-	metrics      *telemetry.Metrics
-	logger       *slog.Logger
+	coinRepo      repository.CoinRepository
+	snapshotRepo  repository.SnapshotRepository
+	syncLogRepo   repository.SyncLogRepository
+	provider      provider.Provider
+	orchestrator  *provider.FallbackOrchestrator
+	cache         *cache.MarketCache
+	metrics       *telemetry.Metrics
+	logger        *slog.Logger
 }
 
 // NewIngestor creates a new Ingestor.
@@ -45,6 +46,27 @@ func NewIngestor(
 	}
 }
 
+// NewIngestorWithFallback creates an Ingestor with provider fallback support.
+func NewIngestorWithFallback(
+	coinRepo repository.CoinRepository,
+	snapshotRepo repository.SnapshotRepository,
+	syncLogRepo repository.SyncLogRepository,
+	orchestrator *provider.FallbackOrchestrator,
+	cache *cache.MarketCache,
+	metrics *telemetry.Metrics,
+	logger *slog.Logger,
+) *Ingestor {
+	return &Ingestor{
+		coinRepo:     coinRepo,
+		snapshotRepo: snapshotRepo,
+		syncLogRepo:  syncLogRepo,
+		orchestrator: orchestrator,
+		cache:        cache,
+		metrics:      metrics,
+		logger:       logger,
+	}
+}
+
 // RunCycle executes one complete ingestion cycle.
 func (ing *Ingestor) RunCycle(ctx context.Context) error {
 	start := time.Now()
@@ -52,7 +74,7 @@ func (ing *Ingestor) RunCycle(ctx context.Context) error {
 	// 1. Load active coins.
 	coins, err := ing.coinRepo.GetActiveCoins(ctx)
 	if err != nil {
-		ing.recordFailure(ctx, start, err)
+		ing.recordFailure(ctx, start, ing.providerName(), err)
 		return fmt.Errorf("load active coins: %w", err)
 	}
 	if len(coins) == 0 {
@@ -68,17 +90,27 @@ func (ing *Ingestor) RunCycle(ctx context.Context) error {
 		symbolToCoin[c.ProviderSymbol] = c
 	}
 
-	// 2. Fetch market data from provider.
+	// 2. Fetch market data from provider (with fallback if configured).
 	providerStart := time.Now()
-	dataList, err := ing.provider.FetchMarketData(ctx, providerSymbols)
+	var dataList []market.MarketData
+	var fetchErr error
+	var usedProvider string
+
+	if ing.orchestrator != nil {
+		dataList, fetchErr = ing.orchestrator.FetchMarketData(ctx, providerSymbols)
+		usedProvider = ing.orchestrator.ActiveProvider()
+	} else {
+		dataList, fetchErr = ing.provider.FetchMarketData(ctx, providerSymbols)
+		usedProvider = ing.provider.Name()
+	}
 	providerDuration := time.Since(providerStart)
 
-	if err != nil {
-		ing.metrics.ProviderRequestDuration.WithLabelValues(ing.provider.Name(), "error").Observe(providerDuration.Seconds())
-		ing.recordFailure(ctx, start, err)
-		return fmt.Errorf("fetch market data: %w", err)
+	if fetchErr != nil {
+		ing.metrics.ProviderRequestDuration.WithLabelValues(usedProvider, "error").Observe(providerDuration.Seconds())
+		ing.recordFailure(ctx, start, usedProvider, fetchErr)
+		return fmt.Errorf("fetch market data: %w", fetchErr)
 	}
-	ing.metrics.ProviderRequestDuration.WithLabelValues(ing.provider.Name(), "success").Observe(providerDuration.Seconds())
+	ing.metrics.ProviderRequestDuration.WithLabelValues(usedProvider, "success").Observe(providerDuration.Seconds())
 
 	// 3. Validate and build snapshots.
 	now := time.Now().UTC()
@@ -124,18 +156,18 @@ func (ing *Ingestor) RunCycle(ctx context.Context) error {
 	}
 
 	if len(snapshots) == 0 {
-		ing.recordFailure(ctx, start, fmt.Errorf("no valid snapshots after validation"))
+		ing.recordFailure(ctx, start, usedProvider, fmt.Errorf("no valid snapshots after validation"))
 		return fmt.Errorf("no valid market data after validation")
 	}
 
 	// 4. Store snapshots in PostgreSQL.
 	if err := ing.snapshotRepo.InsertBatch(ctx, snapshots); err != nil {
-		ing.recordFailure(ctx, start, err)
+		ing.recordFailure(ctx, start, usedProvider, err)
 		return fmt.Errorf("store snapshots: %w", err)
 	}
 
 	// 5. Record sync log.
-	ing.recordSuccess(ctx, start)
+	ing.recordSuccess(ctx, start, usedProvider)
 
 	// 6. Store latest values in Redis and 7. publish events.
 	for _, ld := range latestData {
@@ -173,10 +205,20 @@ func (ing *Ingestor) findCoin(coins []market.Coin, symbol string) (market.Coin, 
 	return market.Coin{}, false
 }
 
-func (ing *Ingestor) recordSuccess(ctx context.Context, start time.Time) {
+func (ing *Ingestor) providerName() string {
+	if ing.orchestrator != nil {
+		return ing.orchestrator.ActiveProvider()
+	}
+	if ing.provider != nil {
+		return ing.provider.Name()
+	}
+	return "unknown"
+}
+
+func (ing *Ingestor) recordSuccess(ctx context.Context, start time.Time, providerName string) {
 	finished := time.Now().UTC()
 	log := &market.ProviderSyncLog{
-		Provider:          ing.provider.Name(),
+		Provider:          providerName,
 		RequestDurationMs: time.Since(start).Milliseconds(),
 		Status:            "success",
 		StartedAt:         start.UTC(),
@@ -187,12 +229,12 @@ func (ing *Ingestor) recordSuccess(ctx context.Context, start time.Time) {
 	}
 }
 
-func (ing *Ingestor) recordFailure(ctx context.Context, start time.Time, cause error) {
+func (ing *Ingestor) recordFailure(ctx context.Context, start time.Time, providerName string, cause error) {
 	ing.metrics.IngestionFailure.Inc()
 	finished := time.Now().UTC()
 	errMsg := cause.Error()
 	log := &market.ProviderSyncLog{
-		Provider:          ing.provider.Name(),
+		Provider:          providerName,
 		RequestDurationMs: time.Since(start).Milliseconds(),
 		Status:            "failure",
 		ErrorMessage:      &errMsg,

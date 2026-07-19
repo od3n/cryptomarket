@@ -17,6 +17,7 @@ import (
 	"github.com/crypto-market-platform/internal/config"
 	"github.com/crypto-market-platform/internal/provider"
 	"github.com/crypto-market-platform/internal/repository"
+	"github.com/crypto-market-platform/internal/resilience"
 	"github.com/crypto-market-platform/internal/scheduler"
 	"github.com/crypto-market-platform/internal/telemetry"
 	"github.com/crypto-market-platform/internal/worker"
@@ -66,13 +67,57 @@ func main() {
 	snapshotRepo := repository.NewPostgresSnapshotRepository(db)
 	syncLogRepo := repository.NewPostgresSyncLogRepository(db)
 
-	prov := provider.NewCoinGeckoProvider(cfg.ProviderBaseURL, cfg.ProviderTimeout)
+	// Build provider chain with fallback support.
+	registry := provider.NewRegistry()
+	registry.SetBaseURL("coingecko", cfg.ProviderBaseURL)
+	registry.SetBaseURL("coincap", cfg.CoinCapBaseURL)
 
-	ingestor := worker.NewIngestor(
+	// Create providers in priority order.
+	var providers []provider.Provider
+	providerNames := append([]string{cfg.ProviderPrimary}, cfg.ProviderFallback...)
+	for _, name := range providerNames {
+		p, err := registry.Create(name, cfg.ProviderBaseURL, cfg.ProviderTimeout)
+		if err != nil {
+			logger.Warn("failed to create provider, skipping",
+				slog.String("provider", name),
+				slog.String("error", err.Error()))
+			continue
+		}
+		providers = append(providers, p)
+	}
+
+	if len(providers) == 0 {
+		logger.Error("no providers available")
+		os.Exit(1)
+	}
+
+	// Create fallback orchestrator.
+	selector := provider.NewSelector(providers, cfg.ProviderDisabled)
+	cbManager := resilience.NewManager(resilience.CircuitBreakerConfig{
+		FailureThreshold: cfg.CircuitBreakerFailureThreshold,
+		OpenDuration:     cfg.CircuitBreakerOpenDuration,
+		SuccessThreshold: cfg.CircuitBreakerSuccessThreshold,
+	})
+	rateTracker := resilience.NewRateLimitTracker()
+	retryConfig := resilience.RetryConfig{
+		MaxAttempts: cfg.RetryMaxAttempts,
+		BaseDelay:   cfg.RetryBaseDelay,
+		MaxDelay:    cfg.RetryMaxDelay,
+	}
+
+	orchestrator := provider.NewFallbackOrchestrator(
+		selector,
+		cbManager,
+		rateTracker,
+		retryConfig,
+		logger,
+	)
+
+	ingestor := worker.NewIngestorWithFallback(
 		coinRepo,
 		snapshotRepo,
 		syncLogRepo,
-		prov,
+		orchestrator,
 		marketCache,
 		metrics,
 		logger,
@@ -95,7 +140,8 @@ func main() {
 
 	logger.Info("starting ingestor",
 		slog.Duration("interval", cfg.IngestionInterval),
-		slog.String("provider", prov.Name()),
+		slog.String("primary_provider", cfg.ProviderPrimary),
+		slog.Any("fallback_providers", cfg.ProviderFallback),
 	)
 
 	sched.Start(runCtx)
