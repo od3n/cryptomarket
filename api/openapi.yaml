@@ -206,6 +206,34 @@ paths:
               schema:
                 type: string
 
+  /providers/status:
+    get:
+      summary: Get provider status
+      description: Returns the operational status of data providers including last sync time, duration, and recent failures.
+      operationId: getProviderStatus
+      responses:
+        "200":
+          description: Provider status list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ProviderStatus"
+                  count:
+                    type: integer
+              example:
+                data:
+                  - provider: coingecko
+                    last_sync_at: "2026-07-20T08:15:00Z"
+                    last_duration_ms: 1250
+                    last_status: success
+                    recent_failures: 0
+                count: 1
+
 components:
   schemas:
     Coin:
@@ -278,3 +306,22 @@ components:
       properties:
         error:
           type: string
+
+    ProviderStatus:
+      type: object
+      properties:
+        provider:
+          type: string
+        last_sync_at:
+          type: string
+          format: date-time
+          nullable: true
+        last_duration_ms:
+          type: integer
+          format: int64
+          nullable: true
+        last_status:
+          type: string
+          enum: [success, failure]
+        recent_failures:
+          type: integer
