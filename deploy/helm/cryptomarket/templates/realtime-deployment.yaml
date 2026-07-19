@@ -1,0 +1,134 @@
+{{- if .Values.realtime.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: realtime-gateway
+  namespace: {{ include "cryptomarket.namespace" . }}
+  labels:
+    {{- include "cryptomarket.componentLabels" (dict "root" . "name" "realtime-gateway" "component" "realtime") | nindent 4 }}
+spec:
+  {{- if not .Values.realtime.autoscaling.enabled }}
+  replicas: {{ .Values.realtime.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: realtime-gateway
+      app.kubernetes.io/component: realtime
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        {{- include "cryptomarket.componentLabels" (dict "root" . "name" "realtime-gateway" "component" "realtime") | nindent 8 }}
+    spec:
+      serviceAccountName: realtime-gateway
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: realtime-gateway
+          image: {{ include "cryptomarket.image" (dict "root" . "image" .Values.realtime.image) }}
+          imagePullPolicy: {{ .Values.realtime.image.pullPolicy }}
+          ports:
+            - containerPort: {{ int .Values.realtime.env.HTTP_PORT | default 8081 }}
+              protocol: TCP
+              name: http
+          envFrom:
+            - configMapRef:
+                name: realtime-gateway-config
+            - secretRef:
+                name: realtime-gateway-secrets
+          resources:
+            {{- toYaml .Values.realtime.resources | nindent 12 }}
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: realtime-gateway
+  namespace: {{ include "cryptomarket.namespace" . }}
+  labels:
+    {{- include "cryptomarket.componentLabels" (dict "root" . "name" "realtime-gateway" "component" "realtime") | nindent 4 }}
+spec:
+  type: {{ .Values.realtime.service.type }}
+  selector:
+    app.kubernetes.io/name: realtime-gateway
+    app.kubernetes.io/component: realtime
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - port: {{ .Values.realtime.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+---
+{{- if .Values.realtime.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: realtime-gateway
+  namespace: {{ include "cryptomarket.namespace" . }}
+  labels:
+    {{- include "cryptomarket.componentLabels" (dict "root" . "name" "realtime-gateway" "component" "realtime") | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: realtime-gateway
+  minReplicas: {{ .Values.realtime.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.realtime.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.realtime.autoscaling.targetCPUUtilization }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.realtime.autoscaling.targetMemoryUtilization }}
+---
+{{- end }}
+{{- if .Values.realtime.pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: realtime-gateway
+  namespace: {{ include "cryptomarket.namespace" . }}
+  labels:
+    {{- include "cryptomarket.componentLabels" (dict "root" . "name" "realtime-gateway" "component" "realtime") | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.realtime.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: realtime-gateway
+      app.kubernetes.io/component: realtime
+      app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+{{- end }}

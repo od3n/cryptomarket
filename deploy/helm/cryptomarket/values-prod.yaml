@@ -1,0 +1,153 @@
+# Production environment overrides
+global:
+  namespace: cryptomarket-prod
+
+api:
+  replicaCount: 3
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilization: 60
+    targetMemoryUtilization: 75
+  pdb:
+    enabled: true
+    minAvailable: 2
+  env:
+    APP_ENV: production
+    LOG_LEVEL: info
+
+ingestor:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  pdb:
+    enabled: true
+    minAvailable: 1
+  env:
+    APP_ENV: production
+    LOG_LEVEL: info
+    INGESTION_INTERVAL: "30s"
+
+realtime:
+  replicaCount: 3
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 15
+    targetCPUUtilization: 60
+    targetMemoryUtilization: 75
+  pdb:
+    enabled: true
+    minAvailable: 2
+  env:
+    APP_ENV: production
+    LOG_LEVEL: info
+
+frontend:
+  replicaCount: 3
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 10
+    targetCPUUtilization: 60
+  pdb:
+    enabled: true
+    minAvailable: 2
+
+# Production uses managed services (RDS/ElastiCache)
+postgres:
+  enabled: false
+
+redis:
+  enabled: false
+
+ingress:
+  enabled: true
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/enable-compression: "true"
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+    nginx.ingress.kubernetes.io/limit-connections: "200"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+  hosts:
+    frontend: cryptomarket.example.com
+    api: api.cryptomarket.example.com
+    realtime: realtime.cryptomarket.example.com
+  tls:
+    enabled: true
+    secretName: cryptomarket-prod-tls
+
+networkPolicy:
+  enabled: true
+
+slo:
+  availabilityTarget: 99.95
+  latencyP99Target: 300
+  freshnessTarget: 60
+  errorBudgetWindow: 30d
+
+monitoring:
+  enabled: true
+  prometheus:
+    retention: 30d
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: "2"
+        memory: 4Gi
+  grafana:
+    enabled: true
+  alertmanager:
+    enabled: true
+  loki:
+    enabled: true
+  tempo:
+    enabled: true
+
+# Canary deployment configuration
+canary:
+  enabled: false
+  steps:
+    - weight: 5
+      pause: 300
+    - weight: 25
+      pause: 300
+    - weight: 50
+      pause: 300
+    - weight: 100
+  analysis:
+    errorRateThreshold: 1.0
+    latencyP99Threshold: 500
+    availabilityThreshold: 99.9
+    freshnessThreshold: 120

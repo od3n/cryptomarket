@@ -1,0 +1,17 @@
+apiVersion: v2
+name: cryptomarket
+description: Crypto Market Data Platform - Real-time cryptocurrency market data aggregation and delivery
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - cryptocurrency
+  - market-data
+  - realtime
+  - platform
+maintainers:
+  - name: Platform Team
+dependencies:
+  - name: monitoring
+    version: 1.0.0
+    condition: monitoring.enabled

@@ -1,0 +1,69 @@
+# Staging environment overrides
+global:
+  namespace: cryptomarket-staging
+
+api:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 5
+  env:
+    APP_ENV: staging
+    LOG_LEVEL: info
+
+ingestor:
+  replicaCount: 1
+  env:
+    APP_ENV: staging
+    LOG_LEVEL: info
+    INGESTION_INTERVAL: "60s"
+
+realtime:
+  replicaCount: 2
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 4
+  env:
+    APP_ENV: staging
+    LOG_LEVEL: info
+
+frontend:
+  replicaCount: 2
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 4
+
+# Staging uses managed services (RDS/ElastiCache)
+postgres:
+  enabled: false
+
+redis:
+  enabled: false
+
+ingress:
+  enabled: true
+  hosts:
+    frontend: staging.cryptomarket.example.com
+    api: staging-api.cryptomarket.example.com
+    realtime: staging-realtime.cryptomarket.example.com
+  tls:
+    enabled: true
+    secretName: cryptomarket-staging-tls
+
+networkPolicy:
+  enabled: true
+
+monitoring:
+  enabled: true
+  prometheus:
+    retention: 7d

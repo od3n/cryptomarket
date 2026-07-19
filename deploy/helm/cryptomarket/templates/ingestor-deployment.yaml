@@ -1,0 +1,76 @@
+{{- if .Values.ingestor.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: market-ingestor
+  namespace: {{ include "cryptomarket.namespace" . }}
+  labels:
+    {{- include "cryptomarket.componentLabels" (dict "root" . "name" "market-ingestor" "component" "ingestor") | nindent 4 }}
+spec:
+  replicas: {{ .Values.ingestor.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: market-ingestor
+      app.kubernetes.io/component: ingestor
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        {{- include "cryptomarket.componentLabels" (dict "root" . "name" "market-ingestor" "component" "ingestor") | nindent 8 }}
+    spec:
+      serviceAccountName: market-ingestor
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: market-ingestor
+          image: {{ include "cryptomarket.image" (dict "root" . "image" .Values.ingestor.image) }}
+          imagePullPolicy: {{ .Values.ingestor.image.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: market-ingestor-config
+            - secretRef:
+                name: market-ingestor-secrets
+          resources:
+            {{- toYaml .Values.ingestor.resources | nindent 12 }}
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "pgrep -f service || exit 1"
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "pgrep -f service || exit 1"
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+---
+{{- if .Values.ingestor.pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: market-ingestor
+  namespace: {{ include "cryptomarket.namespace" . }}
+  labels:
+    {{- include "cryptomarket.componentLabels" (dict "root" . "name" "market-ingestor" "component" "ingestor") | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.ingestor.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: market-ingestor
+      app.kubernetes.io/component: ingestor
+      app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end }}
+{{- end }}

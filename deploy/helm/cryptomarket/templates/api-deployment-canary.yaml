@@ -1,0 +1,96 @@
+{{- if and .Values.api.enabled .Values.canary.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: market-api-canary
+  namespace: {{ include "cryptomarket.namespace" . }}
+  labels:
+    {{- include "cryptomarket.componentLabels" (dict "root" . "name" "market-api" "component" "api") | nindent 4 }}
+    app.kubernetes.io/track: canary
+spec:
+  replicas: {{ .Values.canary.replicas | default 1 }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: market-api
+      app.kubernetes.io/component: api
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/track: canary
+  template:
+    metadata:
+      labels:
+        {{- include "cryptomarket.componentLabels" (dict "root" . "name" "market-api" "component" "api") | nindent 8 }}
+        app.kubernetes.io/track: canary
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: /metrics
+    spec:
+      serviceAccountName: market-api
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      {{- with .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: market-api
+          image: {{ include "cryptomarket.image" (dict "root" . "image" .Values.canary.image | default .Values.api.image) }}
+          imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+          ports:
+            - containerPort: {{ int .Values.api.env.HTTP_PORT | default 8080 }}
+              protocol: TCP
+              name: http
+          envFrom:
+            - configMapRef:
+                name: market-api-config
+            - secretRef:
+                name: market-api-secrets
+          env:
+            - name: CANARY_TRACK
+              value: "canary"
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: market-api-canary
+  namespace: {{ include "cryptomarket.namespace" . }}
+  labels:
+    {{- include "cryptomarket.componentLabels" (dict "root" . "name" "market-api" "component" "api") | nindent 4 }}
+    app.kubernetes.io/track: canary
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: market-api
+    app.kubernetes.io/component: api
+    app.kubernetes.io/track: canary
+{{- end }}

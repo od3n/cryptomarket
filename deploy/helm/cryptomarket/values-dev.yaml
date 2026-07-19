@@ -1,0 +1,88 @@
+# Development environment overrides
+global:
+  namespace: cryptomarket-dev
+
+api:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 128Mi
+  autoscaling:
+    enabled: false
+  env:
+    APP_ENV: development
+    LOG_LEVEL: debug
+
+ingestor:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  env:
+    APP_ENV: development
+    LOG_LEVEL: debug
+    INGESTION_INTERVAL: "30s"
+
+realtime:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  autoscaling:
+    enabled: false
+  env:
+    APP_ENV: development
+    LOG_LEVEL: debug
+
+frontend:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  autoscaling:
+    enabled: false
+
+# Dev uses in-cluster PostgreSQL and Redis
+postgres:
+  enabled: true
+  storage:
+    size: 5Gi
+
+redis:
+  enabled: true
+  storage:
+    size: 2Gi
+
+ingress:
+  enabled: false
+
+networkPolicy:
+  enabled: false
+
+monitoring:
+  enabled: true
+  prometheus:
+    retention: 3d
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi

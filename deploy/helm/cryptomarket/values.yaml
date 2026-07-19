@@ -1,0 +1,252 @@
+# Default values for cryptomarket platform
+# Override per environment: values-dev.yaml, values-staging.yaml, values-prod.yaml
+
+global:
+  namespace: cryptomarket
+  imageRegistry: ""
+  imagePullSecrets: []
+
+# -- API Service
+api:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: market-api
+    tag: ""  # Defaults to appVersion
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilization: 70
+    targetMemoryUtilization: 80
+  pdb:
+    enabled: true
+    minAvailable: 1
+  env:
+    APP_ENV: production
+    SERVICE_NAME: market-api
+    HTTP_PORT: "8080"
+    LOG_LEVEL: info
+    REDIS_DB: "0"
+  secrets:
+    POSTGRES_DSN: ""
+    REDIS_ADDRESS: ""
+    REDIS_PASSWORD: ""
+
+# -- Ingestor Service
+ingestor:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: market-ingestor
+    tag: ""
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+  pdb:
+    enabled: true
+    minAvailable: 1
+  env:
+    APP_ENV: production
+    SERVICE_NAME: market-ingestor
+    LOG_LEVEL: info
+    REDIS_DB: "0"
+    INGESTION_INTERVAL: "60s"
+    PROVIDER_BASE_URL: "https://api.coingecko.com/api/v3"
+    PROVIDER_TIMEOUT: "10s"
+    PROVIDER_PRIMARY: coingecko
+    PROVIDER_FALLBACK: coincap
+    CB_FAILURE_THRESHOLD: "5"
+    CB_OPEN_DURATION: "30s"
+    CB_SUCCESS_THRESHOLD: "2"
+    RETRY_MAX_ATTEMPTS: "3"
+    RETRY_BASE_DELAY: "500ms"
+    RETRY_MAX_DELAY: "10s"
+  secrets:
+    POSTGRES_DSN: ""
+    REDIS_ADDRESS: ""
+    REDIS_PASSWORD: ""
+
+# -- Realtime Gateway Service
+realtime:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: realtime-gateway
+    tag: ""
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8081
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilization: 70
+    targetMemoryUtilization: 80
+  pdb:
+    enabled: true
+    minAvailable: 1
+  env:
+    APP_ENV: production
+    SERVICE_NAME: realtime-gateway
+    HTTP_PORT: "8081"
+    LOG_LEVEL: info
+    REDIS_DB: "0"
+  secrets:
+    REDIS_ADDRESS: ""
+    REDIS_PASSWORD: ""
+
+# -- Frontend Service
+frontend:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: market-frontend
+    tag: ""
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 3000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilization: 70
+  pdb:
+    enabled: true
+    minAvailable: 1
+  env:
+    NODE_ENV: production
+    API_URL: "http://market-api:80"
+    REALTIME_URL: "http://realtime-gateway:80"
+    NEXT_PUBLIC_FRESH_THRESHOLD: "120"
+    NEXT_PUBLIC_STALE_THRESHOLD: "300"
+
+# -- PostgreSQL (dev only - use RDS in staging/prod)
+postgres:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "16-alpine"
+  storage:
+    size: 10Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  auth:
+    username: cryptouser
+    password: cryptopass
+    database: cryptomarket
+
+# -- Redis (dev only - use ElastiCache in staging/prod)
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: "7-alpine"
+  storage:
+    size: 5Gi
+    storageClass: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# -- Ingress Configuration
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/enable-compression: "true"
+    nginx.ingress.kubernetes.io/limit-rps: "50"
+    nginx.ingress.kubernetes.io/limit-connections: "100"
+  hosts:
+    frontend: cryptomarket.example.com
+    api: api.cryptomarket.example.com
+    realtime: realtime.cryptomarket.example.com
+  tls:
+    enabled: true
+    secretName: cryptomarket-tls
+
+# -- Network Policies
+networkPolicy:
+  enabled: true
+
+# -- Service Accounts
+serviceAccount:
+  create: true
+  annotations: {}
+
+# -- SLO Configuration
+slo:
+  availabilityTarget: 99.9
+  latencyP99Target: 500
+  freshnessTarget: 120
+  errorBudgetWindow: 30d
+
+# -- Monitoring subchart
+monitoring:
+  enabled: true
+  prometheus:
+    enabled: true
+    retention: 15d
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 2Gi
+  grafana:
+    enabled: true
+    adminPassword: admin
+  alertmanager:
+    enabled: true
+  loki:
+    enabled: true
+  tempo:
+    enabled: true
