@@ -1,0 +1,281 @@
+# Prometheus Alert Rules for Crypto Market Data Platform
+# Organized by severity: Critical and Warning
+
+groups:
+  # Critical Alerts - Immediate action required
+  - name: critical_alerts
+    rules:
+      # API Unavailable
+      - alert: APIUnavailable
+        expr: |
+          sum(rate(http_responses_total{status=~"5.."}[5m]))
+          /
+          sum(rate(http_responses_total[5m])) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+          service: market-api
+        annotations:
+          summary: "API is experiencing high error rate"
+          description: "More than 10% of API requests are failing with 5xx errors for 2 minutes."
+          runbook: "docs/runbooks/api-unavailable.md"
+
+      # Ingestion Completely Failing
+      - alert: IngestionFailing
+        expr: |
+          rate(ingestion_failure_total[5m]) > 0
+          and
+          rate(ingestion_success_total[5m]) == 0
+        for: 5m
+        labels:
+          severity: critical
+          service: market-ingestor
+        annotations:
+          summary: "Market data ingestion is completely failing"
+          description: "No successful ingestion cycles in the last 5 minutes."
+          runbook: "docs/runbooks/ingestion-failure.md"
+
+      # All Providers Unavailable
+      - alert: AllProvidersUnavailable
+        expr: |
+          count(circuit_breaker_state == 1) == count(circuit_breaker_state)
+          and
+          count(circuit_breaker_state) > 0
+        for: 1m
+        labels:
+          severity: critical
+          service: market-ingestor
+        annotations:
+          summary: "All market data providers are unavailable"
+          description: "All provider circuit breakers are open. No data source available."
+          runbook: "docs/runbooks/all-providers-unavailable.md"
+
+      # Data Stale Critical
+      - alert: DataStaleCritical
+        expr: data_freshness_seconds > 600
+        for: 2m
+        labels:
+          severity: critical
+          service: market-ingestor
+        annotations:
+          summary: "Market data is critically stale"
+          description: "No fresh market data for more than 10 minutes."
+          runbook: "docs/runbooks/data-freshness-alert.md"
+
+      # PostgreSQL Unavailable
+      - alert: PostgreSQLUnavailable
+        expr: |
+          probe_success{job="postgres"} == 0
+          or
+          absent(up{job="postgres"})
+        for: 1m
+        labels:
+          severity: critical
+          service: postgres
+        annotations:
+          summary: "PostgreSQL is unavailable"
+          description: "Cannot connect to PostgreSQL database."
+          runbook: "docs/runbooks/postgresql-unavailable.md"
+
+      # Redis Unavailable
+      - alert: RedisUnavailable
+        expr: |
+          redis_up == 0
+          or
+          absent(redis_up)
+        for: 1m
+        labels:
+          severity: critical
+          service: redis
+        annotations:
+          summary: "Redis is unavailable"
+          description: "Cannot connect to Redis. Cache and streams affected."
+          runbook: "docs/runbooks/redis-unavailable.md"
+
+  # Warning Alerts - Investigation required
+  - name: warning_alerts
+    rules:
+      # Primary Provider Unavailable (Fallback Active)
+      - alert: PrimaryProviderDown
+        expr: |
+          circuit_breaker_state{name="coingecko"} == 1
+        for: 2m
+        labels:
+          severity: warning
+          service: market-ingestor
+        annotations:
+          summary: "Primary provider (CoinGecko) is unavailable"
+          description: "Circuit breaker open for primary provider. Operating on fallback."
+          runbook: "docs/runbooks/provider-unavailable.md"
+
+      # Elevated Provider Latency
+      - alert: ProviderHighLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(provider_request_duration_seconds_bucket[5m])) by (le, provider)
+          ) > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: market-ingestor
+        annotations:
+          summary: "Provider latency is elevated"
+          description: "95th percentile provider latency exceeds 5 seconds."
+          runbook: "docs/runbooks/provider-unavailable.md"
+
+      # High Rate Limit Frequency
+      - alert: HighRateLimitFrequency
+        expr: |
+          rate(provider_rate_limited_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: market-ingestor
+        annotations:
+          summary: "High rate of provider rate limiting"
+          description: "Provider is frequently rate limiting our requests."
+          runbook: "docs/runbooks/provider-rate-limiting.md"
+
+      # Increased API Latency
+      - alert: APIHighLatency
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le)
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          service: market-api
+        annotations:
+          summary: "API latency is elevated"
+          description: "99th percentile API latency exceeds 500ms."
+          runbook: "docs/runbooks/high-api-latency.md"
+
+      # Realtime Consumer Lag
+      - alert: RealtimeConsumerLag
+        expr: |
+          realtime_consumer_lag > 1000
+        for: 5m
+        labels:
+          severity: warning
+          service: realtime-gateway
+        annotations:
+          summary: "Realtime consumer is lagging"
+          description: "Stream consumer lag exceeds 1000 messages."
+          runbook: "docs/runbooks/realtime-delivery-degraded.md"
+
+      # Sustained Stale Symbols
+      - alert: SustainedStaleSymbols
+        expr: |
+          count(data_freshness_status == 2) > 0
+        for: 10m
+        labels:
+          severity: warning
+          service: market-ingestor
+        annotations:
+          summary: "Some symbols have stale data"
+          description: "One or more symbols have stale data for more than 10 minutes."
+          runbook: "docs/runbooks/data-freshness-alert.md"
+
+      # Provider Data Mismatch
+      - alert: ProviderDataMismatch
+        expr: |
+          anomaly_detected_total{type="price_divergence"} > 0
+        for: 5m
+        labels:
+          severity: warning
+          service: market-ingestor
+        annotations:
+          summary: "Price divergence detected between providers"
+          description: "Significant price difference detected between data providers."
+          runbook: "docs/runbooks/provider-unavailable.md"
+
+  # Error Budget Burn Rate Alerts
+  - name: error_budget_alerts
+    rules:
+      # Fast Burn - API Availability (1h + 5m windows)
+      # 14.4x burn rate consumes 2% of budget in 1 hour
+      - alert: APIAvailabilityFastBurn
+        expr: |
+          (
+            (1 - api:success_ratio:5m) > (14.4 * 0.001)
+            and
+            (1 - avg_over_time(api:success_ratio:5m[1h])) > (14.4 * 0.001)
+          )
+        for: 2m
+        labels:
+          severity: critical
+          service: market-api
+          slo: api_availability
+        annotations:
+          summary: "API availability error budget burning fast"
+          description: "Error budget burn rate is 14.4x. At this rate, budget exhausted in ~2 days."
+          runbook: "docs/runbooks/error-budget-burn.md"
+
+      # Slow Burn - API Availability (6h + 30m windows)
+      # 6x burn rate consumes 5% of budget in 6 hours
+      - alert: APIAvailabilitySlowBurn
+        expr: |
+          (
+            (1 - avg_over_time(api:success_ratio:5m[6h])) > (6 * 0.001)
+            and
+            (1 - avg_over_time(api:success_ratio:5m[30m])) > (6 * 0.001)
+          )
+        for: 15m
+        labels:
+          severity: warning
+          service: market-api
+          slo: api_availability
+        annotations:
+          summary: "API availability error budget burning slowly"
+          description: "Error budget burn rate is 6x. At this rate, budget exhausted in ~5 days."
+          runbook: "docs/runbooks/error-budget-burn.md"
+
+      # Ingestion Error Budget Burn
+      - alert: IngestionErrorBudgetBurn
+        expr: |
+          (1 - ingestion:success_ratio:5m) > (6 * 0.005)
+        for: 10m
+        labels:
+          severity: warning
+          service: market-ingestor
+          slo: ingestion_success
+        annotations:
+          summary: "Ingestion error budget burning"
+          description: "Ingestion failure rate exceeds 6x burn rate threshold."
+          runbook: "docs/runbooks/error-budget-burn.md"
+
+  # Multi-Window Burn Rate Alert (Example Implementation)
+  - name: multi_window_burn_rate
+    rules:
+      # This implements the multi-window, multi-burn-rate alerting pattern
+      # from Google SRE Workbook for API availability SLO
+      - alert: APIAvailabilityMultiWindowBurn
+        expr: |
+          # Fast burn: 1h window at 14.4x AND 5m window at 14.4x
+          (
+            (1 - avg_over_time(api:success_ratio:5m[1h])) > (14.4 * 0.001)
+            and
+            (1 - api:success_ratio:5m) > (14.4 * 0.001)
+          )
+          or
+          # Slow burn: 6h window at 6x AND 30m window at 6x
+          (
+            (1 - avg_over_time(api:success_ratio:5m[6h])) > (6 * 0.001)
+            and
+            (1 - avg_over_time(api:success_ratio:5m[30m])) > (6 * 0.001)
+          )
+        for: 2m
+        labels:
+          severity: critical
+          service: market-api
+          slo: api_availability
+          alert_type: multi_window_burn_rate
+        annotations:
+          summary: "API availability SLO burn rate alert (multi-window)"
+          description: |
+            Multi-window burn rate alert triggered.
+            Fast burn (1h/5m at 14.4x) or slow burn (6h/30m at 6x) detected.
+            This alert uses the multi-window pattern to reduce false positives
+            while catching both fast and slow budget consumption.
+          runbook: "docs/runbooks/error-budget-burn.md"

@@ -1,0 +1,77 @@
+# Alertmanager Configuration for Crypto Market Data Platform
+# Routes alerts to appropriate receivers based on severity and service.
+
+global:
+  resolve_timeout: 5m
+  # Email configuration via environment variables (optional)
+  # smtp_smarthost: ${SMTP_SMARTHOST}
+  # smtp_from: ${SMTP_FROM}
+  # smtp_auth_username: ${SMTP_AUTH_USERNAME}
+  # smtp_auth_password: ${SMTP_AUTH_PASSWORD}
+
+route:
+  receiver: default-webhook
+  group_by: ["alertname", "service", "severity"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    # Critical alerts - immediate notification
+    - match:
+        severity: critical
+      receiver: critical-webhook
+      group_wait: 10s
+      repeat_interval: 1h
+      continue: true
+
+    # Warning alerts - standard notification
+    - match:
+        severity: warning
+      receiver: default-webhook
+      group_wait: 30s
+      repeat_interval: 4h
+
+    # Error budget alerts - SLO-specific routing
+    - match:
+        alert_type: multi_window_burn_rate
+      receiver: critical-webhook
+      group_wait: 10s
+      repeat_interval: 2h
+
+inhibit_rules:
+  # If all providers are down, suppress individual provider alerts
+  - source_match:
+      alertname: AllProvidersUnavailable
+    target_match_re:
+      alertname: PrimaryProviderDown|ProviderHighLatency|HighRateLimitFrequency
+    equal: ["service"]
+
+  # If API is unavailable, suppress latency alerts
+  - source_match:
+      alertname: APIUnavailable
+    target_match:
+      alertname: APIHighLatency
+    equal: ["service"]
+
+receivers:
+  # Default webhook receiver for local testing
+  - name: default-webhook
+    webhook_configs:
+      - url: "http://localhost:5001/webhook"
+        send_resolved: true
+        http_config:
+          follow_redirects: true
+
+  # Critical alerts webhook
+  - name: critical-webhook
+    webhook_configs:
+      - url: "http://localhost:5001/webhook"
+        send_resolved: true
+        http_config:
+          follow_redirects: true
+
+  # Email receiver (optional - configure via env vars)
+  # - name: email-receiver
+  #   email_configs:
+  #     - to: ${ALERT_EMAIL_TO}
+  #       send_resolved: true
