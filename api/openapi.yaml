@@ -1,0 +1,280 @@
+openapi: "3.0.3"
+info:
+  title: Crypto Market Data Platform API
+  description: REST API for cryptocurrency market data including latest prices and historical snapshots.
+  version: "1.0.0"
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+paths:
+  /health:
+    get:
+      summary: Liveness check
+      description: Confirms the process is alive.
+      operationId: getHealth
+      responses:
+        "200":
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /ready:
+    get:
+      summary: Readiness check
+      description: Checks required dependencies (PostgreSQL, Redis).
+      operationId: getReady
+      responses:
+        "200":
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ready
+        "503":
+          description: Service is not ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /markets:
+    get:
+      summary: Get latest market data
+      description: Returns the latest cached market values for all active coins.
+      operationId: getMarkets
+      responses:
+        "200":
+          description: Latest market data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/LatestMarketData"
+                  count:
+                    type: integer
+              example:
+                data:
+                  - symbol: BTC
+                    name: Bitcoin
+                    price_usd: "65000.5"
+                    market_cap: "1300000000000"
+                    volume_24h: "50000000000"
+                    change_24h: "2.5"
+                    provider: coingecko
+                    captured_at: "2026-01-15T10:30:00Z"
+                count: 1
+
+  /coins:
+    get:
+      summary: List supported coins
+      description: Returns all supported active coins.
+      operationId: getCoins
+      responses:
+        "200":
+          description: List of active coins
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Coin"
+                  count:
+                    type: integer
+
+  /coins/{symbol}:
+    get:
+      summary: Get coin market data
+      description: Returns the latest market data for a specific coin.
+      operationId: getCoinBySymbol
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Coin symbol (e.g., BTC, ETH)
+          example: BTC
+      responses:
+        "200":
+          description: Latest market data for the coin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LatestMarketData"
+        "404":
+          description: Coin not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /coins/{symbol}/history:
+    get:
+      summary: Get coin price history
+      description: Returns paginated historical price snapshots for a coin.
+      operationId: getCoinHistory
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Coin symbol (e.g., BTC, ETH)
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 500
+          description: Maximum number of results
+        - name: before
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Return snapshots before this timestamp (RFC3339)
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Return snapshots from this timestamp (RFC3339)
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Return snapshots up to this timestamp (RFC3339)
+      responses:
+        "200":
+          description: Historical snapshots
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PriceSnapshot"
+                  count:
+                    type: integer
+        "400":
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Coin not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      description: Exposes Prometheus-compatible metrics.
+      operationId: getMetrics
+      responses:
+        "200":
+          description: Prometheus metrics in text format
+          content:
+            text/plain:
+              schema:
+                type: string
+
+components:
+  schemas:
+    Coin:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        symbol:
+          type: string
+        name:
+          type: string
+        provider_symbol:
+          type: string
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    LatestMarketData:
+      type: object
+      properties:
+        symbol:
+          type: string
+        name:
+          type: string
+        price_usd:
+          type: string
+        market_cap:
+          type: string
+        volume_24h:
+          type: string
+        change_24h:
+          type: string
+        provider:
+          type: string
+        captured_at:
+          type: string
+          format: date-time
+
+    PriceSnapshot:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        coin_id:
+          type: integer
+          format: int64
+        price_usd:
+          type: string
+        market_cap:
+          type: string
+        volume_24h:
+          type: string
+        change_24h:
+          type: string
+        provider:
+          type: string
+        captured_at:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
