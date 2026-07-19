@@ -1,0 +1,201 @@
+# Prometheus Recording Rules for SLIs, SLOs, and Error Budgets
+# These rules pre-compute expensive queries for efficient dashboarding and alerting.
+
+groups:
+  # API SLI Recording Rules
+  - name: api_sli_rules
+    interval: 30s
+    rules:
+      # API success ratio (excluding 4xx client errors)
+      - record: api:success_ratio:5m
+        expr: |
+          sum(rate(http_responses_total{status!~"4..|5.."}[5m]))
+          /
+          sum(rate(http_responses_total{status!~"4.."}[5m]))
+
+      # API error ratio (5xx only)
+      - record: api:error_ratio:5m
+        expr: |
+          sum(rate(http_responses_total{status=~"5.."}[5m]))
+          /
+          sum(rate(http_responses_total{status!~"4.."}[5m]))
+
+      # API request rate
+      - record: api:request_rate:5m
+        expr: sum(rate(http_responses_total[5m]))
+
+      # API latency p50
+      - record: api:latency_p50:5m
+        expr: |
+          histogram_quantile(0.50,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le)
+          )
+
+      # API latency p95
+      - record: api:latency_p95:5m
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le)
+          )
+
+      # API latency p99
+      - record: api:latency_p99:5m
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le)
+          )
+
+      # API latency SLO compliance (requests < 300ms)
+      - record: api:latency_slo_compliance:5m
+        expr: |
+          sum(rate(http_request_duration_seconds_bucket{le="0.3"}[5m]))
+          /
+          sum(rate(http_request_duration_seconds_count[5m]))
+
+  # Ingestion SLI Recording Rules
+  - name: ingestion_sli_rules
+    interval: 30s
+    rules:
+      # Ingestion success ratio
+      - record: ingestion:success_ratio:5m
+        expr: |
+          rate(ingestion_success_total[5m])
+          /
+          (rate(ingestion_success_total[5m]) + rate(ingestion_failure_total[5m]))
+
+      # Ingestion cycle rate
+      - record: ingestion:cycle_rate:5m
+        expr: rate(ingestion_success_total[5m]) + rate(ingestion_failure_total[5m])
+
+  # Provider SLI Recording Rules
+  - name: provider_sli_rules
+    interval: 30s
+    rules:
+      # Provider success ratio by provider
+      - record: provider:success_ratio:5m
+        expr: |
+          sum(rate(provider_request_duration_seconds_count{status="success"}[5m])) by (provider)
+          /
+          sum(rate(provider_request_duration_seconds_count[5m])) by (provider)
+
+      # Provider latency p95 by provider
+      - record: provider:latency_p95:5m
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(provider_request_duration_seconds_bucket[5m])) by (le, provider)
+          )
+
+      # Provider rate limit rate
+      - record: provider:rate_limit_rate:5m
+        expr: sum(rate(provider_rate_limited_total[5m])) by (provider)
+
+  # Realtime SLI Recording Rules
+  - name: realtime_sli_rules
+    interval: 30s
+    rules:
+      # Realtime delivery success ratio
+      - record: realtime:delivery_ratio:5m
+        expr: |
+          rate(realtime_events_broadcast_total[5m])
+          /
+          rate(realtime_events_consumed_total[5m])
+
+      # Realtime active connections
+      - record: realtime:active_connections
+        expr: realtime_active_connections
+
+  # Data Freshness SLI Recording Rules
+  - name: freshness_sli_rules
+    interval: 30s
+    rules:
+      # Freshness compliance ratio (fresh symbols / total)
+      - record: freshness:compliance_ratio
+        expr: |
+          count(data_freshness_status == 0)
+          /
+          count(data_freshness_status)
+
+      # Stale symbol count
+      - record: freshness:stale_count
+        expr: count(data_freshness_status == 2) or vector(0)
+
+  # Error Budget Recording Rules
+  - name: error_budget_rules
+    interval: 1m
+    rules:
+      # API availability error budget remaining (30-day window)
+      # Budget = 1 - SLO target = 0.001 (0.1%)
+      - record: slo:api_availability:error_budget_remaining
+        expr: |
+          1 - (
+            (1 - api:success_ratio:5m)
+            /
+            0.001
+          )
+
+      # API availability burn rate (1-hour window)
+      - record: slo:api_availability:burn_rate1h
+        expr: |
+          (1 - api:success_ratio:5m)
+          /
+          0.001
+
+      # API availability burn rate (6-hour window)
+      - record: slo:api_availability:burn_rate6h
+        expr: |
+          (1 - avg_over_time(api:success_ratio:5m[6h]))
+          /
+          0.001
+
+      # API availability burn rate (24-hour window)
+      - record: slo:api_availability:burn_rate24h
+        expr: |
+          (1 - avg_over_time(api:success_ratio:5m[24h]))
+          /
+          0.001
+
+      # Ingestion error budget remaining
+      # Budget = 1 - 0.995 = 0.005 (0.5%)
+      - record: slo:ingestion:error_budget_remaining
+        expr: |
+          1 - (
+            (1 - ingestion:success_ratio:5m)
+            /
+            0.005
+          )
+
+      # Ingestion burn rate (1-hour)
+      - record: slo:ingestion:burn_rate1h
+        expr: |
+          (1 - ingestion:success_ratio:5m)
+          /
+          0.005
+
+      # Latency SLO error budget remaining
+      # Budget = 1 - 0.99 = 0.01 (1%)
+      - record: slo:latency:error_budget_remaining
+        expr: |
+          1 - (
+            (1 - api:latency_slo_compliance:5m)
+            /
+            0.01
+          )
+
+      # Latency burn rate (1-hour)
+      - record: slo:latency:burn_rate1h
+        expr: |
+          (1 - api:latency_slo_compliance:5m)
+          /
+          0.01
+
+  # Circuit Breaker Recording Rules
+  - name: circuit_breaker_rules
+    interval: 30s
+    rules:
+      # Circuit breaker open count
+      - record: circuit_breaker:open_count
+        expr: count(circuit_breaker_state == 1) or vector(0)
+
+      # Circuit breaker state by name (for dashboards)
+      - record: circuit_breaker:state
+        expr: circuit_breaker_state
