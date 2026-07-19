@@ -234,6 +234,19 @@ paths:
                     recent_failures: 0
                 count: 1
 
+  /operations/status:
+    get:
+      summary: Operational status
+      description: Returns the full operational status of the platform including ingestion, providers, freshness, dependencies, and degraded mode.
+      operationId: getOperationsStatus
+      responses:
+        "200":
+          description: Platform operational status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OperationsStatus"
+
 components:
   schemas:
     Coin:
@@ -325,3 +338,82 @@ components:
           enum: [success, failure]
         recent_failures:
           type: integer
+
+    OperationsStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, stale, unavailable]
+        timestamp:
+          type: string
+          format: date-time
+        ingestion:
+          type: object
+          properties:
+            active:
+              type: boolean
+            active_provider:
+              type: string
+            degraded:
+              type: boolean
+        provider:
+          type: object
+          properties:
+            active_provider:
+              type: string
+            degraded:
+              type: boolean
+            last_switch:
+              type: string
+              format: date-time
+              nullable: true
+            circuit_states:
+              type: object
+              additionalProperties:
+                type: string
+            providers:
+              type: array
+              items:
+                type: string
+        freshness:
+          type: object
+          properties:
+            total:
+              type: integer
+            fresh:
+              type: integer
+            delayed:
+              type: integer
+            stale:
+              type: integer
+            unknown:
+              type: integer
+            overall_state:
+              type: string
+              enum: [fresh, delayed, stale, unknown]
+        dependencies:
+          type: object
+          properties:
+            postgresql:
+              type: string
+              enum: [healthy, unavailable]
+            redis:
+              type: string
+              enum: [healthy, unavailable]
+        recent_anomalies:
+          type: array
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+              provider:
+                type: string
+              symbol:
+                type: string
+              message:
+                type: string
+              detected_at:
+                type: string
+                format: date-time

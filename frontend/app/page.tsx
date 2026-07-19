@@ -4,6 +4,7 @@ import { useMarketData } from "@/hooks/useMarketData";
 import { ConnectionStatus } from "@/components/ConnectionStatus";
 import { MarketTable } from "@/components/MarketTable";
 import { ProviderPanel } from "@/components/ProviderPanel";
+import { StatusBanner } from "@/components/StatusBanner";
 import { formatDuration, getDataAgeSeconds } from "@/lib/freshness";
 
 export default function DashboardPage() {
@@ -14,6 +15,9 @@ export default function DashboardPage() {
 
   return (
     <main className="min-h-screen bg-neutral-950">
+      {/* Degraded/Stale Status Banner */}
+      <StatusBanner />
+
       {/* Header */}
       <header className="border-b border-neutral-800 bg-neutral-900/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
@@ -80,7 +84,7 @@ export default function DashboardPage() {
       <footer className="border-t border-neutral-800 mt-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <p className="text-xs text-neutral-600 text-center">
-            Crypto Market Data Platform — Phase 2: Realtime Delivery
+            Crypto Market Data Platform — Phase 3: Resilience Engineering
           </p>
         </div>
       </footer>

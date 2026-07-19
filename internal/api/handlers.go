@@ -22,12 +22,13 @@ const (
 
 // Handler holds dependencies for HTTP handlers.
 type Handler struct {
-	db           *sql.DB
-	coinRepo     repository.CoinRepository
-	snapshotRepo repository.SnapshotRepository
-	syncLogRepo  repository.SyncLogRepository
-	cache        *cache.MarketCache
-	logger       *slog.Logger
+	db             *sql.DB
+	coinRepo       repository.CoinRepository
+	snapshotRepo   repository.SnapshotRepository
+	syncLogRepo    repository.SyncLogRepository
+	cache          *cache.MarketCache
+	logger         *slog.Logger
+	statusReporter *StatusReporter
 }
 
 // NewHandler creates a new Handler.
@@ -47,6 +48,11 @@ func NewHandler(
 		cache:        cache,
 		logger:       logger,
 	}
+}
+
+// SetStatusReporter sets the status reporter for operational status.
+func (h *Handler) SetStatusReporter(sr *StatusReporter) {
+	h.statusReporter = sr
 }
 
 // Health returns a simple liveness check.
@@ -74,6 +80,16 @@ func (h *Handler) Ready(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+	}
+
+	// Report degraded state if operating on fallback provider.
+	if h.statusReporter != nil && h.statusReporter.orchestrator != nil && h.statusReporter.orchestrator.IsDegraded() {
+		writeJSON(w, http.StatusOK, map[string]string{
+			"status":   "ready",
+			"mode":     "degraded",
+			"provider": h.statusReporter.orchestrator.ActiveProvider(),
+		})
+		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ready"})

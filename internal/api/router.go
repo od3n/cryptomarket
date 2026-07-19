@@ -18,6 +18,7 @@ func NewRouter(h *Handler, mw *Middleware) http.Handler {
 	r.Get("/coins/{symbol}", h.CoinBySymbol)
 	r.Get("/coins/{symbol}/history", h.CoinHistory)
 	r.Get("/providers/status", h.ProviderStatus)
+	r.Get("/operations/status", h.OperationsStatus)
 	r.Method("GET", "/metrics", promhttp.Handler())
 
 	return Chain(r,
