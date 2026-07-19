@@ -1,0 +1,172 @@
+name: Deploy Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to deploy (defaults to latest main SHA)"
+        required: false
+        type: string
+      skip_canary:
+        description: "Skip canary and deploy directly"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+  ENVIRONMENT: prod
+  NAMESPACE: cryptomarket-prod
+
+jobs:
+  canary-deploy:
+    name: Canary Deployment
+    runs-on: ubuntu-latest
+    environment: production
+    if: ${{ !inputs.skip_canary }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name cryptomarket-prod-eks --region ${{ env.AWS_REGION }}
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Set image tag
+        id: tag
+        run: echo "tag=${{ inputs.image_tag || github.sha }}" >> $GITHUB_OUTPUT
+
+      - name: "Canary 5%"
+        run: |
+          helm upgrade --install cryptomarket-canary deploy/helm/cryptomarket \
+            -f deploy/helm/cryptomarket/values-prod.yaml \
+            --namespace ${{ env.NAMESPACE }} \
+            --set global.imageRegistry=${{ env.ECR_REGISTRY }} \
+            --set api.image.tag=${{ steps.tag.outputs.tag }} \
+            --set api.replicaCount=1 \
+            --set api.autoscaling.enabled=false \
+            --set canary.enabled=true \
+            --wait --timeout 3m
+          echo "Canary at 5% - waiting for verification"
+          sleep 60
+
+      - name: Verify canary metrics (5%)
+        run: |
+          ERROR_RATE=$(kubectl -n ${{ env.NAMESPACE }} exec deploy/prometheus -- \
+            promtool query instant 'rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m])' 2>/dev/null | tail -1 | awk '{print $2}' || echo "0")
+          echo "Error rate: ${ERROR_RATE}"
+          if (( $(echo "$ERROR_RATE > 0.01" | bc -l 2>/dev/null || echo 0) )); then
+            echo "Error rate exceeds 1% - rolling back"
+            helm uninstall cryptomarket-canary -n ${{ env.NAMESPACE }} || true
+            exit 1
+          fi
+
+      - name: "Canary 25%"
+        run: |
+          helm upgrade cryptomarket-canary deploy/helm/cryptomarket \
+            -f deploy/helm/cryptomarket/values-prod.yaml \
+            --namespace ${{ env.NAMESPACE }} \
+            --set api.replicaCount=2 \
+            --reuse-values --wait
+          sleep 60
+
+      - name: "Canary 50%"
+        run: |
+          helm upgrade cryptomarket-canary deploy/helm/cryptomarket \
+            -f deploy/helm/cryptomarket/values-prod.yaml \
+            --namespace ${{ env.NAMESPACE }} \
+            --set api.replicaCount=3 \
+            --reuse-values --wait
+          sleep 60
+
+      - name: Final verification
+        run: |
+          kubectl -n ${{ env.NAMESPACE }} rollout status deployment/market-api --timeout=120s
+          echo "Canary verification passed"
+
+  promote:
+    name: Promote to Production
+    runs-on: ubuntu-latest
+    environment: production
+    needs: [canary-deploy]
+    if: always() && (needs.canary-deploy.result == 'success' || inputs.skip_canary)
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name cryptomarket-prod-eks --region ${{ env.AWS_REGION }}
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Set image tag
+        id: tag
+        run: echo "tag=${{ inputs.image_tag || github.sha }}" >> $GITHUB_OUTPUT
+
+      - name: Remove canary
+        run: helm uninstall cryptomarket-canary -n ${{ env.NAMESPACE }} || true
+
+      - name: Full production deploy
+        run: |
+          helm upgrade --install cryptomarket deploy/helm/cryptomarket \
+            -f deploy/helm/cryptomarket/values-prod.yaml \
+            --namespace ${{ env.NAMESPACE }} \
+            --create-namespace \
+            --set global.imageRegistry=${{ env.ECR_REGISTRY }} \
+            --set api.image.tag=${{ steps.tag.outputs.tag }} \
+            --set ingestor.image.tag=${{ steps.tag.outputs.tag }} \
+            --set realtime.image.tag=${{ steps.tag.outputs.tag }} \
+            --set frontend.image.tag=${{ steps.tag.outputs.tag }} \
+            --wait --timeout 10m
+
+      - name: Verify production
+        run: |
+          kubectl -n ${{ env.NAMESPACE }} rollout status deployment/market-api --timeout=180s
+          kubectl -n ${{ env.NAMESPACE }} rollout status deployment/realtime-gateway --timeout=180s
+          kubectl -n ${{ env.NAMESPACE }} rollout status deployment/market-frontend --timeout=180s
+          echo "Production deployment complete"
+
+  rollback:
+    name: Automatic Rollback
+    runs-on: ubuntu-latest
+    environment: production
+    needs: [promote]
+    if: failure()
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name cryptomarket-prod-eks --region ${{ env.AWS_REGION }}
+
+      - name: Rollback deployment
+        run: |
+          kubectl -n ${{ env.NAMESPACE }} rollout undo deployment/market-api || true
+          kubectl -n ${{ env.NAMESPACE }} rollout undo deployment/realtime-gateway || true
+          kubectl -n ${{ env.NAMESPACE }} rollout undo deployment/market-frontend || true
+          echo "Rollback initiated"

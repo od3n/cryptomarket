@@ -1,0 +1,133 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  trivy-container:
+    name: Trivy Container Scan
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [api, ingestor, realtime]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -f deploy/docker/Dockerfile --build-arg SERVICE=${{ matrix.service }} -t market-${{ matrix.service }}:scan .
+
+      - name: Run Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: market-${{ matrix.service }}:scan
+          format: sarif
+          output: trivy-results-${{ matrix.service }}.sarif
+          severity: CRITICAL,HIGH
+
+      - name: Upload Trivy results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results-${{ matrix.service }}.sarif
+
+  trivy-iac:
+    name: Trivy IaC Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy IaC
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: config
+          scan-ref: deploy/terraform
+          format: sarif
+          output: trivy-iac.sarif
+          severity: CRITICAL,HIGH,MEDIUM
+
+      - name: Upload results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-iac.sarif
+
+  gitleaks:
+    name: Gitleaks Secret Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  sbom:
+    name: SBOM Generation
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [api, ingestor, realtime]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -f deploy/docker/Dockerfile --build-arg SERVICE=${{ matrix.service }} -t market-${{ matrix.service }}:sbom .
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: market-${{ matrix.service }}:sbom
+          format: spdx-json
+          output-file: sbom-${{ matrix.service }}.spdx.json
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ matrix.service }}
+          path: sbom-${{ matrix.service }}.spdx.json
+
+  dependency-scan:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+
+      - name: Run govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+      - name: Run npm audit
+        working-directory: frontend
+        run: npm audit --audit-level=high || true
+
+  license-check:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+
+      - name: Check Go licenses
+        run: |
+          go install github.com/google/go-licenses@latest
+          go-licenses check ./... --disallowed_types=restricted || true

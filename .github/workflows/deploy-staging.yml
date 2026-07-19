@@ -1,0 +1,175 @@
+name: Deploy Staging
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+  ENVIRONMENT: staging
+
+jobs:
+  terraform:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: deploy/terraform/environments/staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+
+      - name: Upload Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan
+          path: deploy/terraform/environments/staging/tfplan
+
+  helm-lint:
+    name: Helm Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Helm Lint
+        run: helm lint deploy/helm/cryptomarket -f deploy/helm/cryptomarket/values-staging.yaml
+
+      - name: Helm Template
+        run: helm template cryptomarket deploy/helm/cryptomarket -f deploy/helm/cryptomarket/values-staging.yaml --debug
+
+  build-and-push:
+    name: Build & Push Images
+    runs-on: ubuntu-latest
+    needs: [terraform, helm-lint]
+    strategy:
+      matrix:
+        service: [api, ingestor, realtime]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push
+        run: |
+          IMAGE_TAG="${{ env.ECR_REGISTRY }}/market-${{ matrix.service }}:${{ github.sha }}"
+          docker build -f deploy/docker/Dockerfile --build-arg SERVICE=${{ matrix.service }} -t $IMAGE_TAG .
+          docker push $IMAGE_TAG
+
+  build-frontend:
+    name: Build & Push Frontend
+    runs-on: ubuntu-latest
+    needs: [terraform, helm-lint]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push
+        run: |
+          IMAGE_TAG="${{ env.ECR_REGISTRY }}/market-frontend:${{ github.sha }}"
+          docker build -f deploy/docker/Dockerfile.frontend -t $IMAGE_TAG .
+          docker push $IMAGE_TAG
+
+  deploy:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build-and-push, build-frontend]
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name cryptomarket-staging-eks --region ${{ env.AWS_REGION }}
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Deploy with Helm
+        run: |
+          helm upgrade --install cryptomarket deploy/helm/cryptomarket \
+            -f deploy/helm/cryptomarket/values-staging.yaml \
+            --namespace cryptomarket-staging \
+            --create-namespace \
+            --set global.imageRegistry=${{ env.ECR_REGISTRY }} \
+            --set api.image.tag=${{ github.sha }} \
+            --set ingestor.image.tag=${{ github.sha }} \
+            --set realtime.image.tag=${{ github.sha }} \
+            --set frontend.image.tag=${{ github.sha }} \
+            --wait --timeout 5m
+
+  smoke-tests:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    needs: [deploy]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name cryptomarket-staging-eks --region ${{ env.AWS_REGION }}
+
+      - name: Run smoke tests
+        run: |
+          kubectl -n cryptomarket-staging rollout status deployment/market-api --timeout=120s
+          kubectl -n cryptomarket-staging rollout status deployment/realtime-gateway --timeout=120s
+          kubectl -n cryptomarket-staging rollout status deployment/market-frontend --timeout=120s
+          echo "All deployments healthy"
