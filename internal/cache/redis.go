@@ -41,6 +41,30 @@ func (c *MarketCache) SetLatest(ctx context.Context, data market.LatestMarketDat
 	return nil
 }
 
+// SetLatestBatch stores multiple market data entries using Redis pipelining
+// for reduced round-trip overhead under high ingestion throughput.
+func (c *MarketCache) SetLatestBatch(ctx context.Context, entries []market.LatestMarketData) error {
+	if len(entries) == 0 {
+		return nil
+	}
+
+	pipe := c.client.Pipeline()
+	for _, data := range entries {
+		key := latestKeyPrefix + data.Symbol
+		payload, err := json.Marshal(data)
+		if err != nil {
+			return fmt.Errorf("marshal latest market data for %s: %w", data.Symbol, err)
+		}
+		pipe.Set(ctx, key, payload, 5*time.Minute)
+	}
+
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("pipeline set batch (%d entries): %w", len(entries), err)
+	}
+	return nil
+}
+
 // GetLatest retrieves the latest market data for a symbol from Redis.
 func (c *MarketCache) GetLatest(ctx context.Context, symbol string) (*market.LatestMarketData, error) {
 	key := latestKeyPrefix + symbol
