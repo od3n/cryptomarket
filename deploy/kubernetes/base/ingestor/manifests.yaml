@@ -72,13 +72,25 @@ spec:
         app.kubernetes.io/component: ingestor
     spec:
       serviceAccountName: market-ingestor
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
+        runAsGroup: 10001
         fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: market-ingestor
           image: market-ingestor:latest
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities:
+              drop:
+                - ALL
           envFrom:
             - configMapRef:
                 name: market-ingestor-config
@@ -94,9 +106,8 @@ spec:
           livenessProbe:
             exec:
               command:
-                - /bin/sh
-                - -c
-                - "pgrep -f service || exit 1"
+                - /usr/local/bin/service
+                - --version
             periodSeconds: 30
             timeoutSeconds: 5
             failureThreshold: 3

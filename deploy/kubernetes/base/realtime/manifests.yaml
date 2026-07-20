@@ -61,10 +61,14 @@ spec:
         app.kubernetes.io/component: realtime
     spec:
       serviceAccountName: realtime-gateway
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
+        runAsGroup: 10001
         fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: realtime-gateway
           image: realtime-gateway:latest
@@ -72,6 +76,14 @@ spec:
             - containerPort: 8081
               protocol: TCP
               name: http
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities:
+              drop:
+                - ALL
           envFrom:
             - configMapRef:
                 name: realtime-gateway-config

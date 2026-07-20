@@ -62,10 +62,14 @@ spec:
         app.kubernetes.io/component: api
     spec:
       serviceAccountName: market-api
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
+        runAsGroup: 10001
         fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: market-api
           image: market-api:latest
@@ -73,6 +77,14 @@ spec:
             - containerPort: 8080
               protocol: TCP
               name: http
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities:
+              drop:
+                - ALL
           envFrom:
             - configMapRef:
                 name: market-api-config
