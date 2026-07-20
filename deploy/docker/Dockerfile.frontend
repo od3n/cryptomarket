@@ -7,6 +7,12 @@ COPY frontend/package*.json ./
 RUN npm ci
 
 COPY frontend/ .
+
+ARG API_URL=http://localhost:8080
+ARG REALTIME_URL=http://localhost:8081
+ENV API_URL=$API_URL
+ENV REALTIME_URL=$REALTIME_URL
+
 RUN npm run build
 
 # Runtime stage

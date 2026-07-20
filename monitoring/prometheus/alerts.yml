@@ -65,9 +65,9 @@ groups:
       # PostgreSQL Unavailable
       - alert: PostgreSQLUnavailable
         expr: |
-          probe_success{job="postgres"} == 0
+          up{job="postgres"} == 0
           or
-          absent(up{job="postgres"})
+          pg_up == 0
         for: 1m
         labels:
           severity: critical
@@ -80,9 +80,9 @@ groups:
       # Redis Unavailable
       - alert: RedisUnavailable
         expr: |
-          redis_up == 0
+          up{job="redis"} == 0
           or
-          absent(redis_up)
+          redis_up == 0
         for: 1m
         labels:
           severity: critical
