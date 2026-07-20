@@ -1,7 +1,7 @@
 # Build stage
 FROM golang:1.21-alpine AS builder
 
-RUN apk add --no-cache git ca-certificates
+RUN apk add --no-cache git ca-certificates tzdata
 
 WORKDIR /app
 
@@ -11,16 +11,19 @@ RUN go mod download
 COPY . .
 
 ARG SERVICE=api
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /bin/service ./cmd/${SERVICE}
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags="-s -w -buildid=" \
+    -trimpath \
+    -o /bin/service ./cmd/${SERVICE}
 
-# Runtime stage
-FROM alpine:3.19
-
-RUN apk add --no-cache ca-certificates tzdata && \
-    adduser -D -u 10001 appuser
+# Runtime stage — distroless static (no shell, no package manager)
+FROM gcr.io/distroless/static-debian12:nonroot
 
 COPY --from=builder /bin/service /usr/local/bin/service
+COPY --from=builder /app/migrations /migrations
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 
-USER appuser
+USER nonroot:nonroot
 
 ENTRYPOINT ["service"]
