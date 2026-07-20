@@ -131,3 +131,84 @@ jobs:
         run: |
           go install github.com/google/go-licenses@latest
           go-licenses check ./... --disallowed_types=restricted || true
+
+  kube-score:
+    name: Kubernetes Score
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run kube-score
+        uses: zegl/kube-score-action@v1
+        with:
+          target_files: deploy/kubernetes/base/**/*.yaml
+          ignore_tests: "Container Image Tag,Container Resources"
+
+  kube-linter:
+    name: Kube Linter
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run kube-linter
+        uses: stackrox/kube-linter-action@v1
+        with:
+          directory: deploy/kubernetes/base
+          format: sarif
+          output-file: kube-linter.sarif
+        continue-on-error: true
+
+      - name: Upload results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: kube-linter.sarif
+
+  checkov:
+    name: Checkov IaC Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: deploy/terraform
+          framework: terraform
+          output_format: sarif
+          output_file_path: checkov.sarif
+        continue-on-error: true
+
+      - name: Upload results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: checkov.sarif
+
+  grype:
+    name: Grype Vulnerability Scan
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [api, ingestor, realtime]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -f deploy/docker/Dockerfile --build-arg SERVICE=${{ matrix.service }} -t market-${{ matrix.service }}:grype .
+
+      - name: Run Grype
+        uses: anchore/scan-action@v4
+        with:
+          image: market-${{ matrix.service }}:grype
+          fail-build: true
+          severity-cutoff: critical
+          output-format: sarif
+          output-file: grype-${{ matrix.service }}.sarif
+        continue-on-error: true
+
+      - name: Upload results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: grype-${{ matrix.service }}.sarif
