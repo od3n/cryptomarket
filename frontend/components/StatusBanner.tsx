@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { config as appConfig } from "@/lib/config";
 
 type PlatformStatus = "healthy" | "degraded" | "stale" | "unavailable";
 
@@ -45,8 +46,7 @@ export function StatusBanner() {
 
     const fetchStatus = async () => {
       try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-        const res = await fetch(`${apiUrl}/operations/status`);
+        const res = await fetch(`${appConfig.apiBaseUrl}/operations/status`);
         if (res.ok) {
           const data: OperationsStatus = await res.json();
           setStatus(data.status);

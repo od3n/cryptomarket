@@ -1,0 +1,139 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Critical Vulnerabilities (Trivy + Grype)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [
+        { "expr": "sum(trivy_vulnerabilities{severity='CRITICAL'}) or vector(0)", "legendFormat": "critical" }
+      ],
+      "fieldConfig": { "defaults": { "thresholds": { "steps": [{"color":"green","value":null},{"color":"red","value":1}] } } }
+    },
+    {
+      "title": "High Vulnerabilities",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "targets": [
+        { "expr": "sum(trivy_vulnerabilities{severity='HIGH'}) or vector(0)", "legendFormat": "high" }
+      ],
+      "fieldConfig": { "defaults": { "thresholds": { "steps": [{"color":"green","value":null},{"color":"yellow","value":5},{"color":"red","value":20}] } } }
+    },
+    {
+      "title": "Medium Vulnerabilities",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "targets": [
+        { "expr": "sum(trivy_vulnerabilities{severity='MEDIUM'}) or vector(0)", "legendFormat": "medium" }
+      ],
+      "fieldConfig": { "defaults": { "thresholds": { "steps": [{"color":"green","value":null},{"color":"yellow","value":20}] } } }
+    },
+    {
+      "title": "Low Vulnerabilities",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "targets": [
+        { "expr": "sum(trivy_vulnerabilities{severity='LOW'}) or vector(0)", "legendFormat": "low" }
+      ]
+    },
+    {
+      "title": "Vulnerabilities by Image",
+      "type": "barchart",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        { "expr": "trivy_vulnerabilities", "legendFormat": "{{image}} {{severity}}" }
+      ]
+    },
+    {
+      "title": "Dependency Vulnerabilities (govulncheck)",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [
+        { "expr": "govulncheck_vulnerabilities", "legendFormat": "{{package}}" }
+      ]
+    },
+    {
+      "title": "Terraform IaC Findings (Checkov)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 12 },
+      "targets": [
+        { "expr": "sum(checkov_findings{result='FAILED'}) or vector(0)", "legendFormat": "failed checks" }
+      ],
+      "fieldConfig": { "defaults": { "thresholds": { "steps": [{"color":"green","value":null},{"color":"red","value":1}] } } }
+    },
+    {
+      "title": "Kubernetes Misconfigurations (kube-linter)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 12 },
+      "targets": [
+        { "expr": "sum(kube_linter_errors) or vector(0)", "legendFormat": "errors" }
+      ],
+      "fieldConfig": { "defaults": { "thresholds": { "steps": [{"color":"green","value":null},{"color":"yellow","value":1}] } } }
+    },
+    {
+      "title": "Secret Scanning Alerts (Gitleaks)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 12 },
+      "targets": [
+        { "expr": "sum(gitleaks_alerts) or vector(0)", "legendFormat": "secrets found" }
+      ],
+      "fieldConfig": { "defaults": { "thresholds": { "steps": [{"color":"green","value":null},{"color":"red","value":1}] } } }
+    },
+    {
+      "title": "Image Signature Verification",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 16 },
+      "targets": [
+        { "expr": "cosign_verified_images", "legendFormat": "verified" }
+      ],
+      "fieldConfig": { "defaults": { "thresholds": { "steps": [{"color":"red","value":null},{"color":"green","value":3}] } } }
+    },
+    {
+      "title": "SBOM Coverage",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 16 },
+      "targets": [
+        { "expr": "count(sbom_generated_total) or vector(0)", "legendFormat": "SBOMs generated" }
+      ]
+    },
+    {
+      "title": "GitHub Security Alerts",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 16 },
+      "targets": [
+        { "expr": "sum(github_security_alerts{state='open'}) or vector(0)", "legendFormat": "open alerts" }
+      ],
+      "fieldConfig": { "defaults": { "thresholds": { "steps": [{"color":"green","value":null},{"color":"yellow","value":1},{"color":"red","value":5}] } } }
+    },
+    {
+      "title": "Rate Limited Requests (429s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "targets": [
+        { "expr": "sum(rate(http_response_total{status='429'}[5m]))", "legendFormat": "429/s" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "title": "Failed Authentication Attempts (future)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "targets": [
+        { "expr": "sum(rate(http_response_total{status='401'}[5m])) or vector(0)", "legendFormat": "401/s" },
+        { "expr": "sum(rate(http_response_total{status='403'}[5m])) or vector(0)", "legendFormat": "403/s" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["security", "cryptomarket"],
+  "templating": { "list": [] },
+  "time": { "from": "now-24h", "to": "now" },
+  "title": "Security Posture",
+  "uid": "cryptomarket-security"
+}
