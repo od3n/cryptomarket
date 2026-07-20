@@ -1,0 +1,119 @@
+name: Build and Sign
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag override"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+  packages: write
+
+env:
+  ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+  COSIGN_VERSION: "2.2.3"
+
+jobs:
+  build-sign-publish:
+    name: Build, Sign & Publish
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [api, ingestor, realtime]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Login to ECR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.ECR_REGISTRY }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Determine image tag
+        id: meta
+        run: |
+          TAG="${{ inputs.tag || github.sha }}"
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "image=${{ env.ECR_REGISTRY }}/market-${{ matrix.service }}" >> $GITHUB_OUTPUT
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          build-args: SERVICE=${{ matrix.service }}
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
+            ${{ steps.meta.outputs.image }}:latest
+          provenance: mode=max
+          sbom: true
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: "v${{ env.COSIGN_VERSION }}"
+
+      - name: Sign image with keyless (OIDC)
+        run: |
+          cosign sign --yes \
+            --annotation "repo=${{ github.repository }}" \
+            --annotation "workflow=${{ github.workflow }}" \
+            --annotation "ref=${{ github.sha }}" \
+            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
+
+      - name: Generate SBOM (Syft)
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
+          format: spdx-json
+          output-file: sbom-${{ matrix.service }}.spdx.json
+
+      - name: Attach SBOM attestation
+        run: |
+          cosign attest --yes \
+            --predicate sbom-${{ matrix.service }}.spdx.json \
+            --type spdxjson \
+            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ matrix.service }}
+          path: sbom-${{ matrix.service }}.spdx.json
+
+  verify-signatures:
+    name: Verify Signatures
+    runs-on: ubuntu-latest
+    needs: [build-sign-publish]
+    steps:
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: "v${{ env.COSIGN_VERSION }}"
+
+      - name: Verify image signatures
+        run: |
+          for svc in api ingestor realtime; do
+            echo "Verifying market-${svc}..."
+            cosign verify \
+              --certificate-identity-regexp ".*" \
+              --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+              ${{ env.ECR_REGISTRY }}/market-${svc}:${{ github.sha }} || exit 1
+          done
+          echo "All signatures verified."
