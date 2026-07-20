@@ -5,12 +5,14 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
 	_ "github.com/lib/pq"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/redis/go-redis/v9"
 
 	"github.com/crypto-market-platform/internal/cache"
@@ -138,6 +140,29 @@ func main() {
 		runCancel()
 	}()
 
+	// Start metrics/health HTTP server for Prometheus scraping.
+	metricsPort := os.Getenv("METRICS_PORT")
+	if metricsPort == "" {
+		metricsPort = "8082"
+	}
+	metricsMux := http.NewServeMux()
+	metricsMux.Handle("/metrics", promhttp.Handler())
+	metricsMux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"ok"}`))
+	})
+	metricsServer := &http.Server{
+		Addr:    ":" + metricsPort,
+		Handler: metricsMux,
+	}
+	go func() {
+		logger.Info("metrics server started", slog.String("port", metricsPort))
+		if err := metricsServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Error("metrics server failed", slog.String("error", err.Error()))
+		}
+	}()
+
 	logger.Info("starting ingestor",
 		slog.Duration("interval", cfg.IngestionInterval),
 		slog.String("primary_provider", cfg.ProviderPrimary),
@@ -145,5 +170,11 @@ func main() {
 	)
 
 	sched.Start(runCtx)
+
+	// Gracefully shut down the metrics server.
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer shutdownCancel()
+	metricsServer.Shutdown(shutdownCtx)
+
 	logger.Info("ingestor stopped gracefully")
 }
