@@ -19,6 +19,14 @@ const customJestConfig = {
     "!**/node_modules/**",
     "!**/.next/**",
   ],
+  coverageThreshold: {
+    global: {
+      branches: 70,
+      functions: 75,
+      lines: 75,
+      statements: 75,
+    },
+  },
 };
 
 module.exports = createJestConfig(customJestConfig);

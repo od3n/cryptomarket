@@ -1,0 +1,146 @@
+name: Terraform Plan
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "deploy/terraform/**"
+      - ".github/workflows/terraform-plan.yml"
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+env:
+  TF_VERSION: "1.7.0"
+  AWS_REGION: us-east-1
+
+jobs:
+  detect-changes:
+    name: Detect Changed Environments
+    runs-on: ubuntu-latest
+    outputs:
+      environments: ${{ steps.filter.outputs.changes }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            dev:
+              - 'deploy/terraform/environments/dev/**'
+              - 'deploy/terraform/modules/**'
+            staging:
+              - 'deploy/terraform/environments/staging/**'
+              - 'deploy/terraform/modules/**'
+            prod:
+              - 'deploy/terraform/environments/prod/**'
+              - 'deploy/terraform/modules/**'
+
+  validate:
+    name: Validate & Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive deploy/terraform/
+
+      - name: Terraform Validate (dev)
+        working-directory: deploy/terraform/environments/dev
+        run: |
+          terraform init -backend=false
+          terraform validate
+
+      - name: Terraform Validate (staging)
+        working-directory: deploy/terraform/environments/staging
+        run: |
+          terraform init -backend=false
+          terraform validate
+
+      - name: Terraform Validate (prod)
+        working-directory: deploy/terraform/environments/prod
+        run: |
+          terraform init -backend=false
+          terraform validate
+
+  plan:
+    name: Plan (${{ matrix.environment }})
+    runs-on: ubuntu-latest
+    needs: [detect-changes, validate]
+    if: needs.detect-changes.outputs.environments != '[]'
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ fromJson(needs.detect-changes.outputs.environments) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_TF_PLAN_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Init
+        working-directory: deploy/terraform/environments/${{ matrix.environment }}
+        run: terraform init
+
+      - name: Terraform Plan
+        id: plan
+        working-directory: deploy/terraform/environments/${{ matrix.environment }}
+        run: |
+          terraform plan -no-color -out=tfplan 2>&1 | tee plan_output.txt
+          echo "exitcode=$?" >> $GITHUB_OUTPUT
+
+      - name: Format Plan for PR Comment
+        id: format
+        working-directory: deploy/terraform/environments/${{ matrix.environment }}
+        run: |
+          PLAN=$(cat plan_output.txt)
+          # Truncate if too long
+          if [ ${#PLAN} -gt 60000 ]; then
+            PLAN="${PLAN:0:60000}... (truncated)"
+          fi
+          {
+            echo "plan<<EOF"
+            echo "$PLAN"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const output = `#### Terraform Plan — \`${{ matrix.environment }}\`
+
+            <details><summary>Show Plan</summary>
+
+            \`\`\`terraform
+            ${{ steps.format.outputs.plan }}
+            \`\`\`
+
+            </details>
+
+            *Triggered by PR #${{ github.event.pull_request.number }}*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });
+
+      - name: Plan Status
+        if: steps.plan.outputs.exitcode != '0'
+        run: exit 1

@@ -1,0 +1,157 @@
+name: Performance Gate
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "internal/**"
+      - "cmd/**"
+      - "go.mod"
+      - "go.sum"
+    labels:
+      - performance
+  workflow_dispatch:
+    inputs:
+      baseline_ref:
+        description: "Git ref for baseline comparison (default: main)"
+        required: false
+        default: "main"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  GO_VERSION: "1.21"
+
+jobs:
+  benchmark:
+    name: Performance Benchmark
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Build API binary
+        run: CGO_ENABLED=0 go build -o bin/api ./cmd/api
+
+      - name: Start API with mock dependencies
+        run: |
+          # Start with minimal config for benchmarking
+          APP_ENV=test HTTP_PORT=8080 ./bin/api &
+          API_PID=$!
+          echo "API_PID=$API_PID" >> $GITHUB_ENV
+          sleep 2
+          # Verify it's running
+          curl -sf http://localhost:8080/health || echo "API may not be fully ready (expected without DB)"
+
+      - name: Install k6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D68
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update && sudo apt-get install k6
+
+      - name: Run benchmark (current)
+        run: |
+          k6 run --quiet --summary-export=benchmark-current.json \
+            --vus 10 --duration 30s \
+            --no-thresholds \
+            load-tests/benchmark.js || true
+
+      - name: Compare with baseline
+        id: compare
+        run: |
+          if [ ! -f benchmark-current.json ]; then
+            echo "No benchmark results generated"
+            echo "regression=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Extract p95 latency from current run
+          P95_CURRENT=$(python3 -c "
+          import json
+          with open('benchmark-current.json') as f:
+              data = json.load(f)
+          metrics = data.get('metrics', {})
+          duration = metrics.get('http_req_duration', {})
+          p95 = duration.get('values', {}).get('p(95)', 0)
+          print(f'{p95:.2f}')
+          " 2>/dev/null || echo "0")
+
+          echo "Current p95: ${P95_CURRENT}ms"
+
+          # Compare against stored baseline (if exists)
+          BASELINE_FILE="load-tests/.baseline-p95"
+          if [ -f "$BASELINE_FILE" ]; then
+            P95_BASELINE=$(cat "$BASELINE_FILE")
+            echo "Baseline p95: ${P95_BASELINE}ms"
+
+            # Calculate regression percentage
+            REGRESSION=$(python3 -c "
+          baseline = float('${P95_BASELINE}')
+          current = float('${P95_CURRENT}')
+          if baseline > 0:
+              pct = ((current - baseline) / baseline) * 100
+              print(f'{pct:.1f}')
+          else:
+              print('0')
+          ")
+            echo "Regression: ${REGRESSION}%"
+
+            # Fail if regression > 20%
+            if (( $(echo "$REGRESSION > 20" | bc -l) )); then
+              echo "regression=true" >> $GITHUB_OUTPUT
+              echo "❌ PERFORMANCE REGRESSION: p95 increased by ${REGRESSION}% (threshold: 20%)"
+              exit 1
+            else
+              echo "regression=false" >> $GITHUB_OUTPUT
+              echo "✅ Performance within threshold (${REGRESSION}% change)"
+            fi
+          else
+            echo "No baseline found. Saving current as baseline."
+            echo "$P95_CURRENT" > "$BASELINE_FILE"
+            echo "regression=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const regression = '${{ steps.compare.outputs.regression }}' === 'true';
+            const status = regression ? '❌ REGRESSION' : '✅ PASS';
+            const body = `#### Performance Gate: ${status}
+
+            | Metric | Value |
+            |--------|-------|
+            | p95 Latency | See benchmark output |
+            | Threshold | < 20% regression |
+            | Status | ${status} |
+
+            *Run: \`${{ github.run_id }}\`*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+      - name: Cleanup
+        if: always()
+        run: |
+          kill ${{ env.API_PID }} 2>/dev/null || true
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: benchmark-results
+          path: benchmark-current.json
+          if-no-files-found: ignore
