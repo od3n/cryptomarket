@@ -1,0 +1,116 @@
+# Karpenter NodePool and EC2NodeClass for automated node provisioning
+# Replaces the static node group with intelligent, cost-optimized provisioning.
+# Prerequisites: Karpenter installed via Helm or Terraform
+---
+apiVersion: karpenter.sh/v1beta1
+kind: NodePool
+metadata:
+  name: cryptomarket-general
+spec:
+  template:
+    metadata:
+      labels:
+        project: cryptomarket
+        node-type: general
+    spec:
+      requirements:
+        # Instance types: compute-optimized for API/realtime workloads
+        - key: karpenter.k8s.aws/instance-category
+          operator: In
+          values: ["c", "m"]
+        - key: karpenter.k8s.aws/instance-generation
+          operator: Gt
+          values: ["4"]
+        # Architecture
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64", "arm64"]
+        # Capacity type: prefer spot for cost savings
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["spot", "on-demand"]
+      nodeClassRef:
+        name: cryptomarket-nodes
+      # Taints: none (general purpose)
+  # Disruption: consolidate underutilized nodes
+  disruption:
+    consolidationPolicy: WhenUnderutilized
+    expireAfter: 720h  # 30 days max node lifetime
+  # Limits: cap total resources
+  limits:
+    cpu: "96"
+    memory: 384Gi
+  # Weight: lower priority than critical pool
+  weight: 10
+---
+apiVersion: karpenter.sh/v1beta1
+kind: NodePool
+metadata:
+  name: cryptomarket-critical
+spec:
+  template:
+    metadata:
+      labels:
+        project: cryptomarket
+        node-type: critical
+    spec:
+      requirements:
+        # On-demand only for critical workloads
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand"]
+        - key: karpenter.k8s.aws/instance-category
+          operator: In
+          values: ["c", "m"]
+        - key: karpenter.k8s.aws/instance-generation
+          operator: Gt
+          values: ["5"]
+      nodeClassRef:
+        name: cryptomarket-nodes
+      taints:
+        - key: critical-workload
+          value: "true"
+          effect: NoSchedule
+  disruption:
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 30m
+    expireAfter: Never  # Critical nodes don't expire
+  limits:
+    cpu: "48"
+    memory: 192Gi
+  weight: 100  # Higher priority
+---
+apiVersion: karpenter.k8s.aws/v1beta1
+kind: EC2NodeClass
+metadata:
+  name: cryptomarket-nodes
+spec:
+  amiFamily: AL2
+  role: cryptomarket-prod-karpenter-node
+  subnetSelectorTerms:
+    - tags:
+        project: cryptomarket
+        environment: prod
+        tier: private
+  securityGroupSelectorTerms:
+    - tags:
+        project: cryptomarket
+        environment: prod
+        role: node
+  blockDeviceMappings:
+    - deviceName: /dev/xvda
+      ebs:
+        volumeSize: 100Gi
+        volumeType: gp3
+        encrypted: true
+        iops: 3000
+        throughput: 125
+  metadataOptions:
+    httpEndpoint: enabled
+    httpProtocolIPv6: disabled
+    httpPutResponseHopLimit: 2
+    httpTokens: required
+  tags:
+    Project: cryptomarket
+    Environment: prod
+    ManagedBy: karpenter

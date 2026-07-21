@@ -1,0 +1,92 @@
+# KEDA ScaledObject — Event-driven autoscaling for the Realtime Gateway
+# Scales based on Redis Stream consumer group lag.
+# Prerequisites: KEDA installed (helm install keda kedacore/keda -n keda)
+---
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: redis-trigger-auth
+  namespace: cryptomarket-prod
+spec:
+  secretTargetRef:
+    - parameter: address
+      name: cryptomarket-secrets
+      key: REDIS_ADDRESS
+    - parameter: password
+      name: cryptomarket-secrets
+      key: REDIS_PASSWORD
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: realtime-gateway-scaler
+  namespace: cryptomarket-prod
+  labels:
+    app.kubernetes.io/name: realtime-gateway
+    app.kubernetes.io/component: autoscaling
+spec:
+  scaleTargetRef:
+    name: realtime-gateway
+  pollingInterval: 15
+  cooldownPeriod: 300
+  minReplicaCount: 2
+  maxReplicaCount: 15
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 30
+          policies:
+            - type: Pods
+              value: 2
+              periodSeconds: 60
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies:
+            - type: Pods
+              value: 1
+              periodSeconds: 120
+  triggers:
+    # Scale on Redis Stream pending messages (consumer group lag)
+    - type: redis-streams
+      metadata:
+        address: ""  # From TriggerAuthentication
+        stream: market:events
+        consumerGroup: realtime-gateway
+        pendingEntriesCount: "1000"  # Scale up when >1000 pending
+      authenticationRef:
+        name: redis-trigger-auth
+---
+# ScaledObject for API based on custom Prometheus metrics
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: market-api-scaler
+  namespace: cryptomarket-prod
+  labels:
+    app.kubernetes.io/name: market-api
+    app.kubernetes.io/component: autoscaling
+spec:
+  scaleTargetRef:
+    name: market-api
+  pollingInterval: 30
+  cooldownPeriod: 300
+  minReplicaCount: 3
+  maxReplicaCount: 20
+  triggers:
+    # Scale on active SSE connections (custom metric)
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus.monitoring.svc:9090
+        metricName: realtime_active_connections
+        query: |
+          sum(realtime_active_connections)
+        threshold: "500"  # Scale up when >500 total connections
+    # Scale on request rate
+    - type: prometheus
+      metadata:
+        serverAddress: http://prometheus.monitoring.svc:9090
+        metricName: http_requests_per_second
+        query: |
+          sum(rate(http_responses_total[2m]))
+        threshold: "1000"  # Scale up when >1000 RPS

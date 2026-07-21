@@ -1,0 +1,33 @@
+# kind cluster configuration for local Kubernetes development
+# Usage: kind create cluster --config deploy/kind/cluster.yaml --name cryptomarket
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: cryptomarket
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+    extraPortMappings:
+      # Ingress controller
+      - containerPort: 80
+        hostPort: 80
+        protocol: TCP
+      - containerPort: 443
+        hostPort: 443
+        protocol: TCP
+      # NodePort services (for direct access without ingress)
+      - containerPort: 30080
+        hostPort: 8080
+        protocol: TCP
+      - containerPort: 30081
+        hostPort: 8081
+        protocol: TCP
+      - containerPort: 30000
+        hostPort: 3000
+        protocol: TCP
+  - role: worker
+  - role: worker

@@ -1,0 +1,50 @@
+{
+  "name": "Crypto Market Platform",
+  "dockerComposeFile": ["../docker-compose.yml"],
+  "service": "api",
+  "workspaceFolder": "/app",
+  "features": {
+    "ghcr.io/devcontainers/features/go:1": {
+      "version": "1.21"
+    },
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    },
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {
+      "kubectl": "latest",
+      "helm": "latest"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-azuretools.vscode-docker",
+        "redhat.vscode-yaml",
+        "hashicorp.terraform",
+        "grafana.grafana"
+      ],
+      "settings": {
+        "go.lintTool": "golangci-lint",
+        "go.lintFlags": ["--fast"],
+        "editor.formatOnSave": true,
+        "[go]": {
+          "editor.defaultFormatter": "golang.go"
+        }
+      }
+    }
+  },
+  "forwardPorts": [3002, 8080, 8081, 9090, 3001],
+  "portsAttributes": {
+    "3002": { "label": "Frontend Dashboard" },
+    "8080": { "label": "Market API" },
+    "8081": { "label": "Realtime Gateway" },
+    "9090": { "label": "Prometheus" },
+    "3001": { "label": "Grafana" }
+  },
+  "postCreateCommand": "make setup && cd frontend && npm ci",
+  "remoteUser": "vscode"
+}
