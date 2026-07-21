@@ -1,0 +1,78 @@
+# Grafana Pyroscope Helm Values — Continuous Profiling
+# Deploy: helm install pyroscope grafana/pyroscope -f deploy/helm/pyroscope-values.yaml -n monitoring
+#
+# Provides always-on CPU, memory, goroutine, and mutex profiling for all Go services.
+# Accessible via Grafana → Explore → Pyroscope datasource.
+
+pyroscope:
+  persistence:
+    enabled: true
+    size: 50Gi
+    storageClassName: gp3
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+
+  retention:
+    # Keep high-resolution data for 7 days, downsampled for 90 days
+    raw: 168h
+    downsampled: 2160h
+
+# Agent configuration — scrape pprof endpoints from all services
+agent:
+  enabled: true
+  configs:
+    - name: cryptomarket
+      scrape_configs:
+        # Market API
+        - job_name: market-api
+          pprof_prefix: ""
+          static_configs:
+            - targets: ["market-api.cryptomarket-prod.svc:80"]
+              labels:
+                service: market-api
+                namespace: cryptomarket-prod
+
+        # Realtime Gateway
+        - job_name: realtime-gateway
+          pprof_prefix: ""
+          static_configs:
+            - targets: ["realtime-gateway.cryptomarket-prod.svc:80"]
+              labels:
+                service: realtime-gateway
+                namespace: cryptomarket-prod
+
+        # Ingestor (metrics port)
+        - job_name: market-ingestor
+          pprof_prefix: ""
+          static_configs:
+            - targets: ["market-ingestor.cryptomarket-prod.svc:8082"]
+              labels:
+                service: market-ingestor
+                namespace: cryptomarket-prod
+
+      # Profile types to collect
+      profile_types:
+        - process_cpu
+        - memory_alloc_objects
+        - memory_inuse_space
+        - goroutine
+        - mutex_count
+        - block_duration
+
+      # Scrape interval
+      scrape_interval: 15s
+
+# Grafana datasource provisioning
+grafana:
+  additionalDataSources:
+    - name: Pyroscope
+      type: grafana-pyroscope-datasource
+      url: http://pyroscope.monitoring.svc:4040
+      access: proxy
+      isDefault: false
