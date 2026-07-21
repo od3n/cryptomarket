@@ -1,0 +1,145 @@
+# Synthetic Monitoring Configuration
+# External uptime checks for all critical endpoints.
+# Compatible with: UptimeRobot, Better Stack, Checkly, or Grafana Synthetic Monitoring
+#
+# Checks run every 60 seconds from 3 regions (us-east, eu-west, ap-southeast).
+# Alerts fire on 2 consecutive failures.
+
+checks:
+  # API Health (liveness)
+  - name: "API Health"
+    url: "https://api.cryptomarket.example.com/health"
+    method: GET
+    interval: 60
+    regions: [us-east-1, eu-west-1, ap-southeast-1]
+    assertions:
+      - type: status
+        value: 200
+      - type: response_time
+        value: 5000  # ms
+    alert:
+      threshold: 2  # consecutive failures
+      channels: [slack-incidents, pagerduty]
+      severity: critical
+
+  # API Readiness (dependencies)
+  - name: "API Readiness"
+    url: "https://api.cryptomarket.example.com/ready"
+    method: GET
+    interval: 60
+    regions: [us-east-1, eu-west-1, ap-southeast-1]
+    assertions:
+      - type: status
+        value: 200
+      - type: json_body
+        path: "$.status"
+        value: "ready"
+    alert:
+      threshold: 2
+      channels: [slack-incidents]
+      severity: critical
+
+  # Markets endpoint (data availability)
+  - name: "Markets Data Available"
+    url: "https://api.cryptomarket.example.com/markets"
+    method: GET
+    interval: 120
+    regions: [us-east-1, eu-west-1]
+    assertions:
+      - type: status
+        value: 200
+      - type: json_body
+        path: "$.count"
+        operator: gte
+        value: 1
+      - type: response_time
+        value: 2000
+    alert:
+      threshold: 3
+      channels: [slack-incidents]
+      severity: warning
+
+  # Provider status
+  - name: "Provider Status"
+    url: "https://api.cryptomarket.example.com/providers/status"
+    method: GET
+    interval: 300
+    regions: [us-east-1]
+    assertions:
+      - type: status
+        value: 200
+    alert:
+      threshold: 3
+      channels: [slack-incidents]
+      severity: warning
+
+  # Realtime SSE endpoint
+  - name: "Realtime SSE Endpoint"
+    url: "https://realtime.cryptomarket.example.com/health"
+    method: GET
+    interval: 60
+    regions: [us-east-1, eu-west-1]
+    assertions:
+      - type: status
+        value: 200
+    alert:
+      threshold: 2
+      channels: [slack-incidents]
+      severity: critical
+
+  # Frontend availability
+  - name: "Frontend Dashboard"
+    url: "https://cryptomarket.example.com"
+    method: GET
+    interval: 120
+    regions: [us-east-1, eu-west-1, ap-southeast-1]
+    assertions:
+      - type: status
+        value: 200
+      - type: response_time
+        value: 5000
+    alert:
+      threshold: 3
+      channels: [slack-incidents]
+      severity: warning
+
+  # Operations status (composite health)
+  - name: "Operations Status"
+    url: "https://api.cryptomarket.example.com/operations/status"
+    method: GET
+    interval: 300
+    regions: [us-east-1]
+    assertions:
+      - type: status
+        value: 200
+      - type: json_body
+        path: "$.status"
+        operator: in
+        value: ["healthy", "degraded"]
+    alert:
+      threshold: 2
+      channels: [slack-incidents]
+      severity: warning
+
+# Alert channels configuration
+channels:
+  slack-incidents:
+    type: slack
+    webhook: "${SLACK_INCIDENTS_WEBHOOK}"
+
+  pagerduty:
+    type: pagerduty
+    integration_key: "${PAGERDUTY_INTEGRATION_KEY}"
+
+# Escalation policy
+escalation:
+  - level: 1
+    after: 2  # failures
+    notify: [slack-incidents]
+  - level: 2
+    after: 5  # failures (5 min)
+    notify: [pagerduty]
+  - level: 3
+    after: 10  # failures (10 min)
+    notify: [pagerduty]
+    page: true

@@ -24,10 +24,34 @@ env:
   NAMESPACE: cryptomarket-prod
 
 jobs:
+  slo-gate:
+    name: SLO Budget Gate
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name cryptomarket-prod-eks --region ${{ env.AWS_REGION }}
+
+      - name: Check SLO error budget
+        run: |
+          PROMETHEUS_URL=$(kubectl -n ${{ env.NAMESPACE }} get svc prometheus -o jsonpath='{.spec.clusterIP}' 2>/dev/null || echo "http://localhost:9090")
+          export PROMETHEUS_URL="http://${PROMETHEUS_URL}:9090"
+          chmod +x scripts/check-slo-gate.sh
+          ./scripts/check-slo-gate.sh
+
   canary-deploy:
     name: Canary Deployment
     runs-on: ubuntu-latest
     environment: production
+    needs: [slo-gate]
     if: ${{ !inputs.skip_canary }}
     steps:
       - uses: actions/checkout@v4

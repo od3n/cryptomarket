@@ -1,0 +1,175 @@
+name: Chaos Engineering (Staging)
+
+on:
+  schedule:
+    # Weekly on Saturday at 02:00 UTC (low-traffic window)
+    - cron: "0 2 * * 6"
+  workflow_dispatch:
+    inputs:
+      experiment:
+        description: "Experiment to run (or 'random' for rotation)"
+        required: false
+        default: "random"
+        type: choice
+        options:
+          - random
+          - kill-api
+          - kill-redis
+          - kill-postgres
+          - slow-provider
+          - network-latency
+          - packet-loss
+          - dns-failure
+          - disk-pressure
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: us-east-1
+  NAMESPACE: cryptomarket-staging
+  CHAOS_ENV: staging
+
+jobs:
+  chaos-experiment:
+    name: Run Chaos Experiment
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name cryptomarket-staging-eks --region ${{ env.AWS_REGION }}
+
+      - name: Select experiment
+        id: select
+        run: |
+          EXPERIMENTS=("kill-api" "kill-redis" "kill-postgres" "slow-provider" "network-latency" "packet-loss" "dns-failure" "disk-pressure")
+
+          if [ "${{ github.event.inputs.experiment }}" != "" ] && [ "${{ github.event.inputs.experiment }}" != "random" ]; then
+            SELECTED="${{ github.event.inputs.experiment }}"
+          else
+            # Rotate based on week number for variety
+            WEEK_NUM=$(date +%V)
+            INDEX=$((WEEK_NUM % ${#EXPERIMENTS[@]}))
+            SELECTED="${EXPERIMENTS[$INDEX]}"
+          fi
+
+          echo "experiment=$SELECTED" >> $GITHUB_OUTPUT
+          echo "Selected experiment: $SELECTED"
+
+      - name: Record baseline metrics
+        id: baseline
+        run: |
+          echo "Recording baseline health..."
+          API_URL=$(kubectl -n ${{ env.NAMESPACE }} get svc market-api -o jsonpath='{.spec.clusterIP}' 2>/dev/null || echo "localhost")
+
+          # Port-forward for health check
+          kubectl -n ${{ env.NAMESPACE }} port-forward svc/market-api 18080:80 &
+          PF_PID=$!
+          sleep 3
+
+          HEALTH=$(curl -sf http://localhost:18080/health 2>/dev/null || echo '{"status":"unknown"}')
+          echo "Baseline health: $HEALTH"
+          echo "baseline_health=$HEALTH" >> $GITHUB_OUTPUT
+
+          kill $PF_PID 2>/dev/null || true
+
+      - name: Run chaos experiment
+        id: experiment
+        run: |
+          echo "=== Running: ${{ steps.select.outputs.experiment }} ==="
+          echo "Environment: ${{ env.CHAOS_ENV }}"
+          echo "Namespace: ${{ env.NAMESPACE }}"
+
+          # Safety gate: verify we're in staging
+          CURRENT_CTX=$(kubectl config current-context)
+          if [[ "$CURRENT_CTX" == *"prod"* ]]; then
+            echo "ERROR: Refusing to run chaos in production context!"
+            exit 1
+          fi
+
+          chmod +x scripts/chaos/run-experiment.sh
+          CHAOS_ENV=staging CHAOS_NAMESPACE=${{ env.NAMESPACE }} OBSERVE_DURATION=60 \
+            ./scripts/chaos/run-experiment.sh ${{ steps.select.outputs.experiment }} 2>&1 | tee chaos_output.txt || true
+
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+
+      - name: Verify recovery
+        id: recovery
+        run: |
+          echo "Waiting 30s for recovery..."
+          sleep 30
+
+          kubectl -n ${{ env.NAMESPACE }} port-forward svc/market-api 18080:80 &
+          PF_PID=$!
+          sleep 3
+
+          RECOVERED=false
+          for i in $(seq 1 6); do
+            HEALTH=$(curl -sf http://localhost:18080/health 2>/dev/null || echo "")
+            if [ -n "$HEALTH" ]; then
+              RECOVERED=true
+              echo "Service recovered after $((i * 10))s"
+              break
+            fi
+            echo "Attempt $i: not yet recovered, waiting 10s..."
+            sleep 10
+          done
+
+          kill $PF_PID 2>/dev/null || true
+          echo "recovered=$RECOVERED" >> $GITHUB_OUTPUT
+
+          if [ "$RECOVERED" != "true" ]; then
+            echo "WARNING: Service did not recover within 60s!"
+          fi
+
+      - name: Generate report
+        if: always()
+        id: report
+        run: |
+          REPORT="## Chaos Experiment Report
+
+          **Date**: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+          **Experiment**: \`${{ steps.select.outputs.experiment }}\`
+          **Environment**: staging
+          **Namespace**: ${{ env.NAMESPACE }}
+
+          ### Results
+
+          | Check | Status |
+          |-------|--------|
+          | Baseline healthy | ${{ steps.baseline.outputs.baseline_health != '' && '✅' || '⚠️' }} |
+          | Experiment completed | ${{ steps.experiment.outputs.exit_code == '0' && '✅' || '⚠️' }} |
+          | Service recovered | ${{ steps.recovery.outputs.recovered == 'true' && '✅' || '❌' }} |
+
+          ### Output
+
+          \`\`\`
+          $(tail -50 chaos_output.txt 2>/dev/null || echo 'No output captured')
+          \`\`\`
+
+          ---
+          *Automated chaos engineering — runs weekly in staging*"
+
+          {
+            echo "report<<EOF"
+            echo "$REPORT"
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
+      - name: Post report to Slack (if configured)
+        if: always() && env.SLACK_WEBHOOK != ''
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_CHAOS_WEBHOOK }}
+        run: |
+          curl -sf -X POST "$SLACK_WEBHOOK" \
+            -H 'Content-Type: application/json' \
+            -d "{\"text\": \"Chaos: ${{ steps.select.outputs.experiment }} — Recovery: ${{ steps.recovery.outputs.recovered }}\"}" || true
