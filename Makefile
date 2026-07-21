@@ -1,4 +1,4 @@
-.PHONY: setup up down logs build run-api run-ingestor run-realtime run-frontend migrate seed test test-integration test-frontend test-e2e lint lint-frontend fmt vet openapi-validate smoke smoke-realtime build-frontend demo clean test-resilience test-provider-fallback mock-provider-up mock-provider-down alert-test prometheus-check slo-check incident-demo incident-reset reconcile load-test-resilience test-python
+.PHONY: setup up down logs build run-api run-ingestor run-realtime run-frontend migrate seed test test-integration test-frontend test-e2e lint lint-frontend fmt vet openapi-validate smoke smoke-realtime build-frontend demo clean test-resilience test-provider-fallback mock-provider-up mock-provider-down alert-test prometheus-check slo-check slo-gate incident-demo incident-reset reconcile load-test-resilience test-python kind-up kind-down kind-deploy kind-logs
 
 # Variables
 APP_ENV ?= development
@@ -200,3 +200,49 @@ reconcile:
 load-test-resilience:
 	@command -v k6 >/dev/null 2>&1 || { echo "k6 not installed. See: https://k6.io/docs/getting-started/installation/"; exit 1; }
 	k6 run load-tests/resilience.js
+
+## slo-gate: Check SLO error budget before deployment
+slo-gate:
+	@bash scripts/check-slo-gate.sh
+
+# ─── Local Kubernetes (kind) Targets ─────────────────────────────────────────
+
+## kind-up: Create a local Kubernetes cluster with kind
+kind-up:
+	@command -v kind >/dev/null 2>&1 || { echo "kind not installed. See: https://kind.sigs.k8s.io/docs/user/quick-start/#installation"; exit 1; }
+	kind create cluster --config deploy/kind/cluster.yaml --name cryptomarket
+	@echo "Cluster created. Install ingress-nginx:"
+	@echo "  kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml"
+
+## kind-down: Delete the local kind cluster
+kind-down:
+	kind delete cluster --name cryptomarket
+
+## kind-deploy: Deploy the platform to the local kind cluster via Helm
+kind-deploy:
+	@command -v helm >/dev/null 2>&1 || { echo "helm not installed."; exit 1; }
+	kubectl create namespace cryptomarket --dry-run=client -o yaml | kubectl apply -f -
+	helm upgrade --install cryptomarket deploy/helm/cryptomarket \
+		--namespace cryptomarket \
+		--set global.namespace=cryptomarket \
+		--set ingress.enabled=false \
+		--set api.service.type=NodePort \
+		--set api.service.nodePort=30080 \
+		--set realtime.service.type=NodePort \
+		--set realtime.service.nodePort=30081 \
+		--set frontend.service.type=NodePort \
+		--set frontend.service.nodePort=30000 \
+		--wait --timeout 5m
+	@echo "Deployed. Access:"
+	@echo "  API:      http://localhost:8080"
+	@echo "  Realtime: http://localhost:8081"
+	@echo "  Frontend: http://localhost:3000"
+
+## kind-logs: Tail logs from the kind cluster
+kind-logs:
+	kubectl logs -n cryptomarket -l app.kubernetes.io/name=market-api --tail=50 -f
+
+## load-test-scale: Run k6 scale test (5000 VU)
+load-test-scale:
+	@command -v k6 >/dev/null 2>&1 || { echo "k6 not installed. See: https://k6.io/docs/getting-started/installation/"; exit 1; }
+	k6 run load-tests/scale.js

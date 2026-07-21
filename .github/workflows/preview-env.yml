@@ -1,0 +1,151 @@
+name: PR Preview Environment
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "internal/**"
+      - "cmd/**"
+      - "frontend/**"
+      - "deploy/helm/**"
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+
+jobs:
+  deploy-preview:
+    name: Deploy Preview
+    runs-on: ubuntu-latest
+    environment: preview
+    outputs:
+      url: ${{ steps.ingress.outputs.url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name cryptomarket-staging-eks --region ${{ env.AWS_REGION }}
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Login to ECR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.ECR_REGISTRY }}
+
+      - name: Build and push preview image
+        run: |
+          TAG="pr-${{ github.event.pull_request.number }}-${{ github.sha }}"
+          docker build -f deploy/docker/Dockerfile --build-arg SERVICE=api \
+            -t ${{ env.ECR_REGISTRY }}/market-api:$TAG .
+          docker push ${{ env.ECR_REGISTRY }}/market-api:$TAG
+          echo "IMAGE_TAG=$TAG" >> $GITHUB_ENV
+
+      - name: Deploy preview namespace
+        run: |
+          NS="preview-pr-${{ github.event.pull_request.number }}"
+          kubectl create namespace $NS --dry-run=client -o yaml | kubectl apply -f -
+
+          helm upgrade --install preview-${{ github.event.pull_request.number }} deploy/helm/cryptomarket \
+            --namespace $NS \
+            --set global.namespace=$NS \
+            --set global.imageRegistry=${{ env.ECR_REGISTRY }} \
+            --set api.image.tag=${{ env.IMAGE_TAG }} \
+            --set api.replicaCount=1 \
+            --set api.autoscaling.enabled=false \
+            --set realtime.replicaCount=1 \
+            --set realtime.autoscaling.enabled=false \
+            --set frontend.replicaCount=1 \
+            --set frontend.autoscaling.enabled=false \
+            --set ingestor.replicaCount=1 \
+            --set postgres.enabled=true \
+            --set redis.enabled=true \
+            --set ingress.enabled=true \
+            --set ingress.hosts.api=pr-${{ github.event.pull_request.number }}.preview.cryptomarket.dev \
+            --set ingress.hosts.frontend=pr-${{ github.event.pull_request.number }}.preview.cryptomarket.dev \
+            --set monitoring.enabled=false \
+            --set networkPolicy.enabled=false \
+            --wait --timeout 5m
+
+      - name: Get preview URL
+        id: ingress
+        run: |
+          URL="https://pr-${{ github.event.pull_request.number }}.preview.cryptomarket.dev"
+          echo "url=$URL" >> $GITHUB_OUTPUT
+
+      - name: Comment PR with preview URL
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = '${{ steps.ingress.outputs.url }}';
+            const body = `🚀 **Preview Environment Deployed**
+
+            | Service | URL |
+            |---------|-----|
+            | Frontend | ${url} |
+            | API | ${url}/api |
+            | Health | ${url}/health |
+
+            **Namespace**: \`preview-pr-${{ github.event.pull_request.number }}\`
+            **Image Tag**: \`${{ env.IMAGE_TAG }}\`
+
+            > This environment will be automatically destroyed when the PR is merged or closed.`;
+
+            // Find existing comment
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.data.find(c => c.body.includes('Preview Environment Deployed'));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body
+              });
+            }
+
+  destroy-preview:
+    name: Destroy Preview
+    runs-on: ubuntu-latest
+    if: github.event.action == 'closed'
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: aws eks update-kubeconfig --name cryptomarket-staging-eks --region ${{ env.AWS_REGION }}
+
+      - name: Destroy preview namespace
+        run: |
+          NS="preview-pr-${{ github.event.pull_request.number }}"
+          helm uninstall preview-${{ github.event.pull_request.number }} -n $NS 2>/dev/null || true
+          kubectl delete namespace $NS --wait=false 2>/dev/null || true
+          echo "Preview environment destroyed: $NS"
