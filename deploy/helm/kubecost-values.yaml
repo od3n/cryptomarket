@@ -1,0 +1,66 @@
+# Kubecost Helm Values for Cost Monitoring
+# Deploy: helm install kubecost kubecost/cost-analyzer -f deploy/helm/kubecost-values.yaml -n kubecost
+#
+# Provides per-service cost allocation, budget alerts, and right-sizing recommendations.
+
+# Cost allocation by namespace and label
+kubecostProductConfigs:
+  clusterName: "cryptomarket-prod"
+  currencyCode: "USD"
+
+  # Alert on budget threshold
+  budgetAlert:
+    enabled: true
+    monthlyBudgetThreshold: 500  # Alert when monthly cost exceeds $500
+
+  # Cost allocation labels
+  labelList:
+    - app.kubernetes.io/name
+    - app.kubernetes.io/component
+
+# Prometheus configuration (use existing)
+prometheus:
+  server:
+    persistentVolume:
+      size: 32Gi
+    retention: 15d
+
+# Cost model configuration
+costModel:
+  # Spot instance detection
+  spotLabel: "karpenter.sh/capacity-type"
+  spotLabelValue: "spot"
+
+# Reporting
+reporting:
+  # Daily cost report
+  logCollection: true
+  productAnalytics: false
+
+# Resource requirements
+resources:
+  requests:
+    cpu: 200m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 2Gi
+
+# Network costs (for cross-AZ traffic)
+networkCosts:
+  enabled: true
+
+# Alerts configuration
+alerts:
+  # Per-namespace budget alerts
+  - type: budget
+    threshold: 200  # $200/month per namespace
+    window: 7d
+    namespace: cryptomarket-prod
+    aggregation: namespace
+
+  # Anomaly detection
+  - type: anomaly
+    window: 7d
+    aggregation: deployment
+    threshold: 30  # Alert on 30% cost increase
