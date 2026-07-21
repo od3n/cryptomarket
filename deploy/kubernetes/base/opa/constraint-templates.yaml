@@ -1,0 +1,187 @@
+# OPA Gatekeeper Constraint Templates
+# These templates define reusable admission policies for the cluster.
+# Apply with: kubectl apply -f deploy/kubernetes/base/opa/
+---
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8srequiredprobes
+  annotations:
+    description: "Requires containers to have liveness and readiness probes defined."
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sRequiredProbes
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            probes:
+              type: array
+              items:
+                type: string
+              description: "List of probe types required (livenessProbe, readinessProbe, startupProbe)"
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8srequiredprobes
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          probe := input.parameters.probes[_]
+          not has_probe(container, probe)
+          msg := sprintf("Container '%v' must have a %v defined", [container.name, probe])
+        }
+
+        has_probe(container, probe) {
+          container[probe]
+        }
+---
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8sdisallowedtags
+  annotations:
+    description: "Disallows container images with specific tags (e.g., :latest)."
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sDisallowedTags
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            tags:
+              type: array
+              items:
+                type: string
+              description: "List of disallowed image tags"
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8sdisallowedtags
+
+        violation[{"msg": msg}] {
+          container := input_containers[_]
+          tag := input.parameters.tags[_]
+          endswith(container.image, sprintf(":%v", [tag]))
+          msg := sprintf("Container '%v' uses disallowed image tag ':%v'. Use immutable SHA tags.", [container.name, tag])
+        }
+
+        violation[{"msg": msg}] {
+          container := input_containers[_]
+          not contains(container.image, ":")
+          msg := sprintf("Container '%v' has no image tag specified (defaults to :latest). Use immutable SHA tags.", [container.name])
+        }
+
+        input_containers[c] {
+          c := input.review.object.spec.containers[_]
+        }
+
+        input_containers[c] {
+          c := input.review.object.spec.initContainers[_]
+        }
+---
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8scontainersecuritycontext
+  annotations:
+    description: "Requires containers to run as non-root with read-only root filesystem and dropped capabilities."
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sContainerSecurityContext
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            requireRunAsNonRoot:
+              type: boolean
+            requireReadOnlyRootFilesystem:
+              type: boolean
+            allowedCapabilities:
+              type: array
+              items:
+                type: string
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8scontainersecuritycontext
+
+        violation[{"msg": msg}] {
+          input.parameters.requireRunAsNonRoot == true
+          container := input.review.object.spec.containers[_]
+          not container.securityContext.runAsNonRoot
+          not input.review.object.spec.securityContext.runAsNonRoot
+          msg := sprintf("Container '%v' must set securityContext.runAsNonRoot=true", [container.name])
+        }
+
+        violation[{"msg": msg}] {
+          input.parameters.requireReadOnlyRootFilesystem == true
+          container := input.review.object.spec.containers[_]
+          not container.securityContext.readOnlyRootFilesystem
+          msg := sprintf("Container '%v' must set securityContext.readOnlyRootFilesystem=true", [container.name])
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          cap := container.securityContext.capabilities.add[_]
+          not allowed_capability(cap)
+          msg := sprintf("Container '%v' adds disallowed capability '%v'", [container.name, cap])
+        }
+
+        allowed_capability(cap) {
+          input.parameters.allowedCapabilities[_] == cap
+        }
+---
+apiVersion: templates.gatekeeper.sh/v1
+kind: ConstraintTemplate
+metadata:
+  name: k8sresourcelimits
+  annotations:
+    description: "Requires containers to have CPU and memory resource limits defined."
+spec:
+  crd:
+    spec:
+      names:
+        kind: K8sResourceLimits
+      validation:
+        openAPIV3Schema:
+          type: object
+          properties:
+            maxCpu:
+              type: string
+            maxMemory:
+              type: string
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package k8sresourcelimits
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not container.resources.limits.cpu
+          msg := sprintf("Container '%v' must define resources.limits.cpu", [container.name])
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not container.resources.limits.memory
+          msg := sprintf("Container '%v' must define resources.limits.memory", [container.name])
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not container.resources.requests.cpu
+          msg := sprintf("Container '%v' must define resources.requests.cpu", [container.name])
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not container.resources.requests.memory
+          msg := sprintf("Container '%v' must define resources.requests.memory", [container.name])
+        }

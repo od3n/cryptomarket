@@ -73,7 +73,8 @@ func main() {
 
 	handler := api.NewHandler(db, coinRepo, snapshotRepo, syncLogRepo, marketCache, logger)
 	middleware := api.NewMiddleware(logger, metrics)
-	router := api.NewRouter(handler, middleware)
+	authCfg := api.NewAuthConfig(cfg.AuthEnabled, cfg.AuthAPIKeys, cfg.AuthJWTSecret, cfg.AuthJWTIssuer)
+	router := api.NewRouter(handler, middleware, authCfg)
 
 	// Create HTTP server.
 	addr := fmt.Sprintf(":%d", cfg.HTTPPort)

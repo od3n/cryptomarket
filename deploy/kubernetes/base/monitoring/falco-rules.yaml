@@ -1,0 +1,166 @@
+# Falco Custom Rules — Crypto Market Data Platform
+# Deploy as ConfigMap or via Helm values for falco/falco-exporter
+# These rules detect runtime anomalies specific to our distroless, non-root containers.
+#
+# Reference: https://falco.org/docs/rules/
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: falco-custom-rules
+  namespace: falco
+  labels:
+    app.kubernetes.io/name: falco
+    app.kubernetes.io/component: rules
+data:
+  cryptomarket-rules.yaml: |
+    # ─── Custom Lists ──────────────────────────────────────────────────────────
+    - list: cryptomarket_namespaces
+      items: [cryptomarket, cryptomarket-prod, cryptomarket-staging]
+
+    - list: cryptomarket_services
+      items: [market-api, market-ingestor, realtime-gateway, market-frontend]
+
+    # Distroless images should NEVER have a shell
+    - list: shell_binaries
+      items: [sh, bash, zsh, csh, ksh, tcsh, dash, fish]
+
+    # Expected outbound connections for our services
+    - list: allowed_outbound_hosts
+      items:
+        - api.coingecko.com
+        - api.coincap.io
+        - "*.amazonaws.com"
+
+    # ─── Custom Rules ──────────────────────────────────────────────────────────
+
+    # Rule 1: Shell spawned in container (CRITICAL for distroless)
+    - rule: Shell Spawned in Distroless Container
+      desc: >
+        Detects any shell process spawned inside a container.
+        Our images are distroless and should never have a shell.
+        This indicates a potential container escape or compromise.
+      condition: >
+        spawned_process
+        and container
+        and proc.name in (shell_binaries)
+        and k8s.ns.name in (cryptomarket_namespaces)
+      output: >
+        Shell spawned in distroless container
+        (user=%user.name command=%proc.cmdline parent=%proc.pname
+        container_id=%container.id container_name=%container.name
+        image=%container.image.repository:%container.image.tag
+        namespace=%k8s.ns.name pod=%k8s.pod.name)
+      priority: CRITICAL
+      tags: [container, shell, mitre_execution]
+
+    # Rule 2: Unexpected outbound connection
+    - rule: Unexpected Outbound Connection
+      desc: >
+        Detects outbound network connections to hosts not in the allowlist.
+        May indicate data exfiltration or C2 communication.
+      condition: >
+        outbound
+        and container
+        and k8s.ns.name in (cryptomarket_namespaces)
+        and not fd.sip.name in (allowed_outbound_hosts)
+        and not fd.sip in (rfc_1918_addresses)
+        and not fd.sport in (53, 443, 80)
+      output: >
+        Unexpected outbound connection from container
+        (command=%proc.cmdline connection=%fd.name
+        container_id=%container.id image=%container.image.repository
+        namespace=%k8s.ns.name pod=%k8s.pod.name)
+      priority: WARNING
+      tags: [network, mitre_exfiltration]
+
+    # Rule 3: Write below /etc or /usr (read-only filesystem violation)
+    - rule: Write to Protected Directory
+      desc: >
+        Detects writes to /etc, /usr, or /bin inside containers.
+        Our containers use read-only root filesystems.
+      condition: >
+        write
+        and container
+        and k8s.ns.name in (cryptomarket_namespaces)
+        and fd.directory in (/etc, /usr, /bin, /sbin)
+      output: >
+        Write to protected directory in container
+        (user=%user.name command=%proc.cmdline file=%fd.name
+        container_id=%container.id image=%container.image.repository
+        namespace=%k8s.ns.name pod=%k8s.pod.name)
+      priority: ERROR
+      tags: [filesystem, mitre_persistence]
+
+    # Rule 4: Privilege escalation attempt
+    - rule: Privilege Escalation Attempt
+      desc: >
+        Detects setuid/setgid calls or capability changes in containers.
+      condition: >
+        container
+        and k8s.ns.name in (cryptomarket_namespaces)
+        and (evt.type in (setuid, setgid, setns)
+             or proc.name in (setcap, capsh))
+      output: >
+        Privilege escalation attempt in container
+        (user=%user.name command=%proc.cmdline evt_type=%evt.type
+        container_id=%container.id image=%container.image.repository
+        namespace=%k8s.ns.name pod=%k8s.pod.name)
+      priority: CRITICAL
+      tags: [privilege_escalation, mitre_privilege_escalation]
+
+    # Rule 5: Crypto mining detection
+    - rule: Cryptocurrency Mining Activity
+      desc: >
+        Detects known crypto mining process names or connections to mining pools.
+      condition: >
+        container
+        and k8s.ns.name in (cryptomarket_namespaces)
+        and (proc.name in (xmrig, minerd, cpuminer, stratum)
+             or proc.cmdline contains "stratum+tcp"
+             or proc.cmdline contains "mining")
+      output: >
+        Cryptocurrency mining activity detected
+        (user=%user.name command=%proc.cmdline
+        container_id=%container.id image=%container.image.repository
+        namespace=%k8s.ns.name pod=%k8s.pod.name)
+      priority: CRITICAL
+      tags: [cryptomining, mitre_impact]
+
+    # Rule 6: Sensitive file access
+    - rule: Sensitive File Read in Container
+      desc: >
+        Detects reads of sensitive files like /etc/shadow, service account tokens.
+      condition: >
+        open_read
+        and container
+        and k8s.ns.name in (cryptomarket_namespaces)
+        and fd.name in (
+          /etc/shadow, /etc/passwd, /etc/sudoers,
+          /var/run/secrets/kubernetes.io/serviceaccount/token
+        )
+        and not proc.name in (service)
+      output: >
+        Sensitive file read in container
+        (user=%user.name command=%proc.cmdline file=%fd.name
+        container_id=%container.id image=%container.image.repository
+        namespace=%k8s.ns.name pod=%k8s.pod.name)
+      priority: WARNING
+      tags: [credential_access, mitre_credential_access]
+
+    # Rule 7: Package manager execution (impossible in distroless)
+    - rule: Package Manager in Distroless Container
+      desc: >
+        Detects package manager execution. Distroless images have no package managers.
+      condition: >
+        spawned_process
+        and container
+        and k8s.ns.name in (cryptomarket_namespaces)
+        and proc.name in (apt, apt-get, dpkg, yum, rpm, apk, pip, npm, gem)
+      output: >
+        Package manager executed in distroless container
+        (user=%user.name command=%proc.cmdline
+        container_id=%container.id image=%container.image.repository
+        namespace=%k8s.ns.name pod=%k8s.pod.name)
+      priority: CRITICAL
+      tags: [container, mitre_execution]

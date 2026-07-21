@@ -1,0 +1,131 @@
+# Linkerd Service Mesh Configuration
+# Enables automatic mTLS between all services in the cryptomarket namespace.
+#
+# Prerequisites:
+#   1. Install Linkerd CLI: https://linkerd.io/2/getting-started/
+#   2. Install Linkerd CRDs: linkerd install --crds | kubectl apply -f -
+#   3. Install Linkerd control plane: linkerd install | kubectl apply -f -
+#   4. Verify: linkerd check
+#
+# Usage:
+#   kubectl annotate namespace cryptomarket-prod linkerd.io/inject=enabled
+#   kubectl rollout restart deployment -n cryptomarket-prod
+#   linkerd viz dashboard  # Verify mesh health
+---
+# Namespace annotation to enable automatic sidecar injection
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cryptomarket-prod
+  annotations:
+    linkerd.io/inject: enabled
+  labels:
+    linkerd.io/is-control-plane: "false"
+---
+# ServiceProfile for market-api — enables per-route metrics and retries
+apiVersion: linkerd.io/v1alpha2
+kind: ServiceProfile
+metadata:
+  name: market-api.cryptomarket-prod.svc.cluster.local
+  namespace: cryptomarket-prod
+spec:
+  routes:
+    - name: GET /health
+      condition:
+        method: GET
+        pathRegex: /health
+      isRetryable: true
+    - name: GET /ready
+      condition:
+        method: GET
+        pathRegex: /ready
+      isRetryable: true
+    - name: GET /markets
+      condition:
+        method: GET
+        pathRegex: /markets
+      isRetryable: true
+      responseClasses:
+        - condition:
+            status:
+              min: 500
+              max: 599
+          isFailure: true
+    - name: GET /coins/{symbol}
+      condition:
+        method: GET
+        pathRegex: /coins/[^/]+
+      isRetryable: true
+    - name: GET /coins/{symbol}/history
+      condition:
+        method: GET
+        pathRegex: /coins/[^/]+/history
+      isRetryable: false
+    - name: GET /providers/status
+      condition:
+        method: GET
+        pathRegex: /providers/status
+      isRetryable: true
+  retryBudget:
+    retryRatio: 0.2
+    minRetriesPerSecond: 10
+    ttl: 10s
+---
+# ServiceProfile for realtime-gateway
+apiVersion: linkerd.io/v1alpha2
+kind: ServiceProfile
+metadata:
+  name: realtime-gateway.cryptomarket-prod.svc.cluster.local
+  namespace: cryptomarket-prod
+spec:
+  routes:
+    - name: GET /events/markets
+      condition:
+        method: GET
+        pathRegex: /events/markets
+      isRetryable: false  # SSE streams should not be retried
+    - name: GET /health
+      condition:
+        method: GET
+        pathRegex: /health
+      isRetryable: true
+---
+# TrafficSplit for canary deployments (used with Flagger or manual)
+# Uncomment when implementing automated progressive delivery
+# apiVersion: split.smi-spec.io/v1alpha2
+# kind: TrafficSplit
+# metadata:
+#   name: market-api-canary
+#   namespace: cryptomarket-prod
+# spec:
+#   service: market-api
+#   backends:
+#     - service: market-api
+#       weight: 95
+#     - service: market-api-canary
+#       weight: 5
+---
+# HTTPRoute for timeout configuration
+apiVersion: policy.linkerd.io/v1beta3
+kind: HTTPRoute
+metadata:
+  name: market-api-timeouts
+  namespace: cryptomarket-prod
+spec:
+  parentRefs:
+    - name: market-api
+      kind: Service
+      group: ""
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      timeouts:
+        request: 30s
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            set:
+              - name: X-Mesh-Injected
+                value: "true"

@@ -9,7 +9,7 @@ import (
 )
 
 // NewRouter creates the HTTP router with all routes and middleware.
-func NewRouter(h *Handler, mw *Middleware) http.Handler {
+func NewRouter(h *Handler, mw *Middleware, authCfg *AuthConfig) http.Handler {
 	r := chi.NewRouter()
 
 	r.Get("/health", h.Health)
@@ -41,6 +41,7 @@ func NewRouter(h *Handler, mw *Middleware) http.Handler {
 		mw.Recover,
 		mw.RequestID,
 		mw.SecurityHeaders,
+		mw.Authenticate(authCfg),
 		mw.RateLimit(100, 200),
 		mw.MaxBodySize(1<<20), // 1 MiB
 		mw.Compress,

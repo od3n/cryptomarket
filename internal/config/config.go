@@ -46,6 +46,12 @@ type Config struct {
 	// Freshness
 	FreshnessThreshold time.Duration
 	StaleThreshold     time.Duration
+
+	// Authentication
+	AuthEnabled   bool
+	AuthAPIKeys   []string
+	AuthJWTSecret string
+	AuthJWTIssuer string
 }
 
 // Load reads configuration from environment variables and returns a validated Config.
@@ -80,6 +86,11 @@ func Load() (*Config, error) {
 
 		FreshnessThreshold: getEnvDuration("FRESHNESS_THRESHOLD", 120*time.Second),
 		StaleThreshold:     getEnvDuration("STALE_THRESHOLD", 300*time.Second),
+
+		AuthEnabled:   getEnv("AUTH_ENABLED", "false") == "true",
+		AuthAPIKeys:   getEnvList("AUTH_API_KEYS", nil),
+		AuthJWTSecret: getEnv("AUTH_JWT_SECRET", ""),
+		AuthJWTIssuer: getEnv("AUTH_JWT_ISSUER", "cryptomarket"),
 	}
 
 	if err := cfg.validate(); err != nil {

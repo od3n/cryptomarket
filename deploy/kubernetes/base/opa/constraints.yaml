@@ -1,0 +1,75 @@
+# OPA Gatekeeper Constraints for Crypto Market Platform
+# These constraints enforce policies using the templates defined in constraint-templates.yaml
+---
+# Require liveness and readiness probes on all containers
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sRequiredProbes
+metadata:
+  name: require-probes
+spec:
+  match:
+    kinds:
+      - apiGroups: ["apps"]
+        kinds: ["Deployment", "StatefulSet"]
+    namespaces:
+      - cryptomarket
+      - cryptomarket-prod
+      - cryptomarket-staging
+  parameters:
+    probes:
+      - livenessProbe
+      - readinessProbe
+---
+# Disallow :latest tag — enforce immutable SHA tags
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sDisallowedTags
+metadata:
+  name: disallow-latest-tag
+spec:
+  match:
+    kinds:
+      - apiGroups: ["apps"]
+        kinds: ["Deployment", "StatefulSet"]
+    namespaces:
+      - cryptomarket
+      - cryptomarket-prod
+      - cryptomarket-staging
+  parameters:
+    tags:
+      - latest
+---
+# Require security context: non-root, read-only filesystem
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sContainerSecurityContext
+metadata:
+  name: require-security-context
+spec:
+  enforcementAction: deny
+  match:
+    kinds:
+      - apiGroups: ["apps"]
+        kinds: ["Deployment", "StatefulSet"]
+    namespaces:
+      - cryptomarket-prod
+  parameters:
+    requireRunAsNonRoot: true
+    requireReadOnlyRootFilesystem: true
+    allowedCapabilities: []
+---
+# Require resource requests and limits
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: K8sResourceLimits
+metadata:
+  name: require-resource-limits
+spec:
+  match:
+    kinds:
+      - apiGroups: ["apps"]
+        kinds: ["Deployment", "StatefulSet"]
+    namespaces:
+      - cryptomarket
+      - cryptomarket-prod
+      - cryptomarket-staging
+  parameters:
+    maxCpu: "4"
+    maxMemory: "8Gi"
