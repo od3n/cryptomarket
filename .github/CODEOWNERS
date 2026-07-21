@@ -1,0 +1,41 @@
+# CODEOWNERS — defines review ownership for repository paths
+# Format: <path pattern> <owner(s)>
+# Last matching rule takes precedence.
+
+# Default: platform team owns everything
+* @platform-team
+
+# Backend Go services
+/internal/ @backend-team
+/cmd/ @backend-team
+/go.mod @backend-team
+/go.sum @backend-team
+
+# Frontend
+/frontend/ @frontend-team
+
+# Infrastructure
+/deploy/terraform/ @platform-team @sre-team
+/deploy/helm/ @platform-team @sre-team
+/deploy/kubernetes/ @platform-team @sre-team
+/deploy/docker/ @platform-team
+
+# CI/CD
+/.github/workflows/ @platform-team
+
+# Security
+/.gitleaks.toml @security-team @platform-team
+/docs/security/ @security-team
+
+# Monitoring & SRE
+/monitoring/ @sre-team
+/docs/runbooks/ @sre-team
+/docs/sre/ @sre-team
+/docs/dr/ @sre-team
+
+# SRE Toolkit
+/sre-toolkit/ @sre-team
+
+# Documentation
+/docs/ @platform-team
+*.md @platform-team

@@ -1,0 +1,159 @@
+# golangci-lint configuration — strict rules for Crypto Market Data Platform
+# Reference: https://golangci-lint.run/usage/configuration/
+
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+output:
+  formats:
+    - format: colored-line-number
+  print-issued-lines: true
+  print-linter-name: true
+
+linters:
+  disable-all: true
+  enable:
+    # Core correctness
+    - errcheck        # Check unchecked errors
+    - gosimple        # Simplification suggestions
+    - govet           # Vet examines Go source
+    - ineffassign     # Detect ineffectual assignments
+    - staticcheck     # Comprehensive static analysis
+    - unused          # Check for unused code
+    - typecheck       # Type-checking errors
+
+    # Error handling
+    - errorlint       # Check error wrapping with %w
+    - wrapcheck       # Check errors are wrapped from external packages
+
+    # Security
+    - gosec           # Security problem inspection
+
+    # Style & quality
+    - gofmt           # Check gofmt formatting
+    - goimports       # Check import formatting
+    - misspell        # Find commonly misspelled words
+    - unconvert       # Remove unnecessary type conversions
+    - unparam         # Report unused function parameters
+    - prealloc        # Suggest slice preallocation
+    - bodyclose       # Check HTTP response body is closed
+    - noctx           # Check HTTP requests use context
+    - durationcheck   # Check for duration multiplication issues
+
+    # Complexity
+    - gocyclo         # Cyclomatic complexity
+    - gocognit        # Cognitive complexity
+    - nestif          # Deeply nested if statements
+
+    # Documentation
+    - revive          # Replacement for golint (exported symbols need comments)
+
+    # Testing
+    - testifylint     # Check testify usage patterns
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: false
+    exclude-functions:
+      - (io.Closer).Close
+      - (net/http.ResponseWriter).Write
+
+  errorlint:
+    errorf: true
+    asserts: true
+    comparison: true
+
+  gosec:
+    excludes:
+      - G104  # Duplicated errcheck (handled separately)
+    config:
+      G306: "0644"  # Allow 0644 for non-sensitive files
+
+  gocyclo:
+    min-complexity: 15
+
+  gocognit:
+    min-complexity: 20
+
+  nestif:
+    min-complexity: 4
+
+  govet:
+    enable-all: true
+    disable:
+      - fieldalignment  # Too noisy for this project
+
+  revive:
+    rules:
+      - name: exported
+        arguments:
+          - "checkPrivateReceivers"
+          - "disableStutteringCheck"
+      - name: blank-imports
+      - name: context-as-argument
+      - name: context-keys-type
+      - name: dot-imports
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: increment-decrement
+      - name: var-naming
+      - name: var-declaration
+      - name: range
+      - name: receiver-naming
+      - name: time-naming
+      - name: unexported-return
+      - name: indent-error-flow
+      - name: errorf
+      - name: empty-block
+      - name: superfluous-else
+      - name: unused-parameter
+      - name: unreachable-code
+      - name: redefines-builtin-id
+
+  gofmt:
+    simplify: true
+
+  goimports:
+    local-prefixes: github.com/crypto-market-platform
+
+  misspell:
+    locale: US
+
+  unparam:
+    check-exported: false
+
+issues:
+  exclude-rules:
+    # Allow fmt.Println in cmd/ main packages (CLI output)
+    - path: cmd/
+      linters:
+        - forbidigo
+    # Allow longer functions in test files
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - gocognit
+        - funlen
+    # Allow unchecked Close in tests
+    - path: _test\.go
+      text: "Error return value of .*.Close is not checked"
+    # Migration files are generated
+    - path: migrations/
+      linters:
+        - revive
+
+  max-issues-per-linter: 50
+  max-same-issues: 10
+
+severity:
+  default-severity: error
+  rules:
+    - linters:
+        - misspell
+        - unconvert
+        - prealloc
+      severity: warning
