@@ -1,10 +1,12 @@
 package provider
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 // Contract tests verify that provider adapters correctly parse the expected
@@ -61,10 +63,10 @@ func TestCoinGeckoContract_MarketResponse(t *testing.T) {
 	defer server.Close()
 
 	// Create provider pointing at mock server
-	p := NewCoinGeckoProvider(server.URL, http.DefaultClient)
+	p := NewCoinGeckoProvider(server.URL, 5*time.Second)
 
 	// Fetch and verify the contract holds
-	data, err := p.FetchMarketData(t.Context(), []string{"bitcoin", "ethereum"})
+	data, err := p.FetchMarketData(context.Background(), []string{"bitcoin", "ethereum"})
 	if err != nil {
 		t.Fatalf("FetchMarketData failed: %v", err)
 	}
@@ -78,8 +80,8 @@ func TestCoinGeckoContract_MarketResponse(t *testing.T) {
 	if btc.Symbol != "BTC" {
 		t.Errorf("expected symbol BTC, got %s", btc.Symbol)
 	}
-	if btc.Price == "" || btc.Price == "0" {
-		t.Errorf("expected non-zero price, got %s", btc.Price)
+	if btc.PriceUSD == "" || btc.PriceUSD == "0" {
+		t.Errorf("expected non-zero price, got %s", btc.PriceUSD)
 	}
 }
 
@@ -120,8 +122,8 @@ func TestCoinGeckoContract_ErrorResponse(t *testing.T) {
 			}))
 			defer server.Close()
 
-			p := NewCoinGeckoProvider(server.URL, http.DefaultClient)
-			_, err := p.FetchMarketData(t.Context(), []string{"bitcoin"})
+			p := NewCoinGeckoProvider(server.URL, 5*time.Second)
+			_, err := p.FetchMarketData(context.Background(), []string{"bitcoin"})
 
 			if tt.wantErr && err == nil {
 				t.Error("expected error, got nil")
@@ -164,8 +166,8 @@ func TestCoinCapContract_MarketResponse(t *testing.T) {
 	}))
 	defer server.Close()
 
-	p := NewCoinCapProvider(server.URL, http.DefaultClient)
-	data, err := p.FetchMarketData(t.Context(), []string{"bitcoin"})
+	p := NewCoinCapProvider(server.URL, 5*time.Second)
+	data, err := p.FetchMarketData(context.Background(), []string{"bitcoin"})
 	if err != nil {
 		t.Fatalf("FetchMarketData failed: %v", err)
 	}
