@@ -239,7 +239,7 @@ func (m *Middleware) Compress(next http.Handler) http.Handler {
 		w.Header().Set("Content-Encoding", "gzip")
 		w.Header().Set("Vary", "Accept-Encoding")
 
-		gz := gzipPool.Get().(*gzip.Writer)
+		gz, _ := gzipPool.Get().(*gzip.Writer)
 		defer gzipPool.Put(gz)
 		gz.Reset(w)
 		defer gz.Close()
@@ -258,7 +258,8 @@ func Chain(handler http.Handler, middlewares ...func(http.Handler) http.Handler)
 
 func generateRequestID() string {
 	b := make([]byte, 16)
-	rand.Read(b)
+	// crypto/rand.Read never fails on supported platforms.
+	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
 }
 

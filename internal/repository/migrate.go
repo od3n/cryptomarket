@@ -44,13 +44,13 @@ func Migrate(ctx context.Context, db *sql.DB, migrationsDir string) error {
 		}
 
 		if _, err := tx.ExecContext(ctx, string(content)); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return fmt.Errorf("execute migration %s: %w", name, err)
 		}
 
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO schema_migrations (name) VALUES ($1)`, name); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return fmt.Errorf("record migration %s: %w", name, err)
 		}
 
@@ -95,13 +95,13 @@ func MigrateDown(ctx context.Context, db *sql.DB, migrationsDir string) error {
 	}
 
 	if _, err := tx.ExecContext(ctx, string(content)); err != nil {
-		tx.Rollback()
+		_ = tx.Rollback()
 		return fmt.Errorf("execute down migration %s: %w", downFile, err)
 	}
 
 	if _, err := tx.ExecContext(ctx,
 		`DELETE FROM schema_migrations WHERE name = $1`, lastMigration); err != nil {
-		tx.Rollback()
+		_ = tx.Rollback()
 		return fmt.Errorf("remove migration record %s: %w", lastMigration, err)
 	}
 

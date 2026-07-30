@@ -110,7 +110,7 @@ func TestHealth(t *testing.T) {
 	}
 
 	var resp map[string]string
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 	if resp["status"] != "ok" {
 		t.Errorf("expected status 'ok', got %s", resp["status"])
 	}
@@ -129,7 +129,7 @@ func TestCoins(t *testing.T) {
 	}
 
 	var resp PaginatedResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 	if resp.Count != 2 {
 		t.Errorf("expected 2 coins, got %d", resp.Count)
 	}
@@ -148,7 +148,7 @@ func TestCoinBySymbol_Found(t *testing.T) {
 	}
 
 	var resp market.LatestMarketData
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 	if resp.Symbol != "BTC" {
 		t.Errorf("expected symbol BTC, got %s", resp.Symbol)
 	}
@@ -183,7 +183,7 @@ func TestCoinHistory(t *testing.T) {
 	}
 
 	var resp PaginatedResponse
-	json.NewDecoder(w.Body).Decode(&resp)
+	_ = json.NewDecoder(w.Body).Decode(&resp)
 	if resp.Count != 1 {
 		t.Errorf("expected 1 snapshot, got %d", resp.Count)
 	}

@@ -174,7 +174,9 @@ func main() {
 	// Gracefully shut down the metrics server.
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
-	metricsServer.Shutdown(shutdownCtx)
+	if err := metricsServer.Shutdown(shutdownCtx); err != nil {
+		logger.Error("metrics server shutdown failed", slog.Any("error", err))
+	}
 
 	logger.Info("ingestor stopped gracefully")
 }

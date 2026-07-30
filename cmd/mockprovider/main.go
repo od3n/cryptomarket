@@ -54,11 +54,11 @@ func main() {
 	})
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{"status": "ok", "mode": defaultMode})
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "mode": defaultMode})
 	})
 	mux.HandleFunc("/mode", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"default_mode": defaultMode,
 			"requests":     strconv.FormatInt(requestCount.Load(), 10),
 		})
@@ -96,7 +96,7 @@ func handleCoinGecko(w http.ResponseWriter, r *http.Request, defaultMode string)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+	_ = json.NewEncoder(w).Encode(result)
 }
 
 func handleCoinCap(w http.ResponseWriter, r *http.Request, defaultMode string) {
@@ -130,7 +130,7 @@ func handleCoinCap(w http.ResponseWriter, r *http.Request, defaultMode string) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"data":      data,
 		"timestamp": time.Now().UnixMilli(),
 	})
@@ -144,7 +144,7 @@ func applyMode(w http.ResponseWriter, mode string) bool {
 		w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusTooManyRequests)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error": "rate limit exceeded",
 		})
 		return false
@@ -152,7 +152,7 @@ func applyMode(w http.ResponseWriter, mode string) bool {
 	case "error":
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error": "internal server error",
 		})
 		return false

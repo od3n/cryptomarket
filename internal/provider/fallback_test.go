@@ -138,8 +138,8 @@ func TestFallbackOrchestrator_CircuitBreakerSkipsOpen(t *testing.T) {
 	fo := testOrchestrator([]Provider{primary, fallback})
 
 	// Fail primary twice to open circuit (threshold is 2).
-	fo.FetchMarketData(context.Background(), []string{"bitcoin"})
-	fo.FetchMarketData(context.Background(), []string{"bitcoin"})
+	_, _ = fo.FetchMarketData(context.Background(), []string{"bitcoin"})
+	_, _ = fo.FetchMarketData(context.Background(), []string{"bitcoin"})
 
 	// Circuit should be open now, third call should skip primary entirely.
 	data, err := fo.FetchMarketData(context.Background(), []string{"bitcoin"})
@@ -189,7 +189,7 @@ func TestFallbackOrchestrator_Status(t *testing.T) {
 	fallback := &testProvider{name: "fallback", data: []market.MarketData{}}
 
 	fo := testOrchestrator([]Provider{primary, fallback})
-	fo.FetchMarketData(context.Background(), []string{"bitcoin"})
+	_, _ = fo.FetchMarketData(context.Background(), []string{"bitcoin"})
 
 	status := fo.Status()
 	if status.ActiveProvider != "primary" {

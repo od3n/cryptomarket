@@ -137,7 +137,7 @@ func TestRetry_ExponentialBackoff(t *testing.T) {
 	var lastTime time.Time
 	first := true
 
-	Retry(context.Background(), cfg, func(ctx context.Context) error {
+	_ = Retry(context.Background(), cfg, func(ctx context.Context) error {
 		now := time.Now()
 		if !first {
 			delays = append(delays, now.Sub(lastTime))

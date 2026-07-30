@@ -29,7 +29,7 @@ func (r *PostgresSnapshotRepository) InsertBatch(ctx context.Context, snapshots 
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	stmt, err := tx.PrepareContext(ctx,
 		`INSERT INTO price_snapshots (coin_id, price_usd, market_cap, volume_24h, change_24h, provider, captured_at)
