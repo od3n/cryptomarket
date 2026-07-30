@@ -17,7 +17,7 @@ var rateLimitedTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 
 // RateLimitTracker tracks rate-limit state per provider.
 type RateLimitTracker struct {
-	mu       sync.RWMutex
+	mu        sync.RWMutex
 	providers map[string]*providerRateLimit
 }
 

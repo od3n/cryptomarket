@@ -18,8 +18,8 @@ const (
 
 // HubConfig holds configuration for the subscriber hub.
 type HubConfig struct {
-	MaxClients     int
-	ClientBuffer   int
+	MaxClients   int
+	ClientBuffer int
 }
 
 // DefaultHubConfig returns sensible defaults.

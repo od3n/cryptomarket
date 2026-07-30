@@ -22,10 +22,10 @@ type Provider interface {
 
 // ProviderError represents a typed error from a provider operation.
 type ProviderError struct {
-	Provider   string
-	StatusCode int
-	Message    string
-	Err        error
+	Provider    string
+	StatusCode  int
+	Message     string
+	Err         error
 	RateLimited bool
 	Transient   bool
 	Permanent   bool

@@ -32,22 +32,22 @@ var (
 
 // FallbackConfig holds configuration for the fallback orchestrator.
 type FallbackConfig struct {
-	RetryConfig        resilience.RetryConfig
-	CircuitBreakerCfg  resilience.CircuitBreakerConfig
+	RetryConfig       resilience.RetryConfig
+	CircuitBreakerCfg resilience.CircuitBreakerConfig
 }
 
 // FallbackOrchestrator manages provider fallback with circuit breakers and retries.
 type FallbackOrchestrator struct {
-	selector      *Selector
-	cbManager     *resilience.Manager
-	rateTracker   *resilience.RateLimitTracker
-	retryConfig   resilience.RetryConfig
-	logger        *slog.Logger
+	selector    *Selector
+	cbManager   *resilience.Manager
+	rateTracker *resilience.RateLimitTracker
+	retryConfig resilience.RetryConfig
+	logger      *slog.Logger
 
-	mu            sync.RWMutex
+	mu             sync.RWMutex
 	activeProvider string
-	lastSwitch    time.Time
-	degraded      bool
+	lastSwitch     time.Time
+	degraded       bool
 }
 
 // NewFallbackOrchestrator creates a new fallback orchestrator.

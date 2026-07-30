@@ -7,16 +7,16 @@ import (
 
 // Metrics holds Prometheus metrics for the realtime gateway service.
 type Metrics struct {
-	ActiveConnections   prometheus.Gauge
-	TotalConnections    prometheus.Counter
-	ConnectionDuration  prometheus.Histogram
-	EventsConsumed      prometheus.Counter
-	EventsBroadcast     prometheus.Counter
-	ValidationFailures  prometheus.Counter
-	RedisReconnects     prometheus.Counter
-	ConsumerLag         prometheus.Gauge
-	DroppedMessages     prometheus.Counter
-	HeartbeatFailures   prometheus.Counter
+	ActiveConnections  prometheus.Gauge
+	TotalConnections   prometheus.Counter
+	ConnectionDuration prometheus.Histogram
+	EventsConsumed     prometheus.Counter
+	EventsBroadcast    prometheus.Counter
+	ValidationFailures prometheus.Counter
+	RedisReconnects    prometheus.Counter
+	ConsumerLag        prometheus.Gauge
+	DroppedMessages    prometheus.Counter
+	HeartbeatFailures  prometheus.Counter
 }
 
 // NewMetrics creates and registers all realtime gateway Prometheus metrics.
@@ -67,9 +67,9 @@ func NewMetrics() *Metrics {
 }
 
 // Implement stream.MetricsReporter interface.
-func (m *Metrics) IncEventsConsumed()     { m.EventsConsumed.Inc() }
-func (m *Metrics) IncValidationFailures() { m.ValidationFailures.Inc() }
-func (m *Metrics) IncRedisReconnects()    { m.RedisReconnects.Inc() }
+func (m *Metrics) IncEventsConsumed()         { m.EventsConsumed.Inc() }
+func (m *Metrics) IncValidationFailures()     { m.ValidationFailures.Inc() }
+func (m *Metrics) IncRedisReconnects()        { m.RedisReconnects.Inc() }
 func (m *Metrics) SetConsumerLag(lag float64) { m.ConsumerLag.Set(lag) }
 
 // Implement subscriber.HubMetrics interface.

@@ -14,9 +14,9 @@ import (
 
 // testProvider is a configurable test provider.
 type testProvider struct {
-	name    string
-	data    []market.MarketData
-	err     error
+	name string
+	data []market.MarketData
+	err  error
 }
 
 func (p *testProvider) Name() string { return p.name }

@@ -27,10 +27,10 @@ import (
 
 // TestEnv holds the test infrastructure for integration tests.
 type TestEnv struct {
-	PostgresDSN   string
-	RedisAddress  string
-	postgresCtr   testcontainers.Container
-	redisCtr      testcontainers.Container
+	PostgresDSN  string
+	RedisAddress string
+	postgresCtr  testcontainers.Container
+	redisCtr     testcontainers.Container
 }
 
 // SetupTestEnv starts PostgreSQL and Redis containers for integration testing.

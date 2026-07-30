@@ -58,12 +58,12 @@ func DefaultAnomalyConfig() AnomalyConfig {
 
 // Anomaly represents a detected anomaly.
 type Anomaly struct {
-	Type      AnomalyType `json:"type"`
-	Provider  string      `json:"provider"`
-	Symbol    string      `json:"symbol,omitempty"`
-	Message   string      `json:"message"`
-	DetectedAt time.Time  `json:"detected_at"`
-	Value     float64     `json:"value,omitempty"`
+	Type       AnomalyType `json:"type"`
+	Provider   string      `json:"provider"`
+	Symbol     string      `json:"symbol,omitempty"`
+	Message    string      `json:"message"`
+	DetectedAt time.Time   `json:"detected_at"`
+	Value      float64     `json:"value,omitempty"`
 }
 
 // AnomalyDetector detects anomalies in market data.

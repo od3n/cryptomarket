@@ -25,13 +25,13 @@ const (
 
 // OperationsStatus represents the full operational status response.
 type OperationsStatus struct {
-	Status        DegradedState               `json:"status"`
-	Timestamp     time.Time                   `json:"timestamp"`
-	Ingestion     IngestionStatus             `json:"ingestion"`
-	Provider      provider.OrchestratorStatus `json:"provider"`
-	Freshness     *market.FreshnessSummary    `json:"freshness,omitempty"`
-	Dependencies  DependencyStatus            `json:"dependencies"`
-	RecentAnomalies []market.Anomaly          `json:"recent_anomalies,omitempty"`
+	Status          DegradedState               `json:"status"`
+	Timestamp       time.Time                   `json:"timestamp"`
+	Ingestion       IngestionStatus             `json:"ingestion"`
+	Provider        provider.OrchestratorStatus `json:"provider"`
+	Freshness       *market.FreshnessSummary    `json:"freshness,omitempty"`
+	Dependencies    DependencyStatus            `json:"dependencies"`
+	RecentAnomalies []market.Anomaly            `json:"recent_anomalies,omitempty"`
 }
 
 // IngestionStatus represents the ingestion subsystem status.
@@ -49,9 +49,9 @@ type DependencyStatus struct {
 
 // StatusReporter provides operational status information.
 type StatusReporter struct {
-	orchestrator    *provider.FallbackOrchestrator
+	orchestrator     *provider.FallbackOrchestrator
 	freshnessTracker *market.FreshnessTracker
-	anomalyDetector *market.AnomalyDetector
+	anomalyDetector  *market.AnomalyDetector
 }
 
 // NewStatusReporter creates a new StatusReporter.

@@ -83,11 +83,11 @@ type CircuitBreaker struct {
 	mu     sync.Mutex
 	config CircuitBreakerConfig
 
-	state          CircuitState
-	failures       int
-	successes      int
-	lastFailure    time.Time
-	openedAt       time.Time
+	state       CircuitState
+	failures    int
+	successes   int
+	lastFailure time.Time
+	openedAt    time.Time
 
 	// nowFunc allows overriding time for testing.
 	nowFunc func() time.Time

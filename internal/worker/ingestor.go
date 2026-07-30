@@ -15,14 +15,14 @@ import (
 
 // Ingestor performs a single ingestion cycle: fetch, validate, persist, cache, publish.
 type Ingestor struct {
-	coinRepo      repository.CoinRepository
-	snapshotRepo  repository.SnapshotRepository
-	syncLogRepo   repository.SyncLogRepository
-	provider      provider.Provider
-	orchestrator  *provider.FallbackOrchestrator
-	cache         *cache.MarketCache
-	metrics       *telemetry.Metrics
-	logger        *slog.Logger
+	coinRepo     repository.CoinRepository
+	snapshotRepo repository.SnapshotRepository
+	syncLogRepo  repository.SyncLogRepository
+	provider     provider.Provider
+	orchestrator *provider.FallbackOrchestrator
+	cache        *cache.MarketCache
+	metrics      *telemetry.Metrics
+	logger       *slog.Logger
 }
 
 // NewIngestor creates a new Ingestor.

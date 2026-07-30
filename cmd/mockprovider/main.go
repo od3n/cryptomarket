@@ -11,9 +11,10 @@
 //   - inconsistent: returns wildly different prices each call
 //
 // Configuration:
-//   MOCK_MODE: default mode (overridden by ?mode= query param)
-//   MOCK_DELAY: delay duration for "delayed" mode (default "3s")
-//   MOCK_PORT: listen port (default "8082")
+//
+//	MOCK_MODE: default mode (overridden by ?mode= query param)
+//	MOCK_DELAY: delay duration for "delayed" mode (default "3s")
+//	MOCK_PORT: listen port (default "8082")
 package main
 
 import (
@@ -86,11 +87,11 @@ func handleCoinGecko(w http.ResponseWriter, r *http.Request, defaultMode string)
 		sym = strings.TrimSpace(strings.ToLower(sym))
 		price := getPrice(sym)
 		result[sym] = map[string]interface{}{
-			"usd":                 price,
-			"usd_market_cap":      price * 19000000,
-			"usd_24h_vol":         price * 500000,
-			"usd_24h_change":      (rand.Float64() - 0.5) * 10,
-			"last_updated_at":     time.Now().Unix(),
+			"usd":             price,
+			"usd_market_cap":  price * 19000000,
+			"usd_24h_vol":     price * 500000,
+			"usd_24h_change":  (rand.Float64() - 0.5) * 10,
+			"last_updated_at": time.Now().Unix(),
 		}
 	}
 
@@ -114,23 +115,23 @@ func handleCoinCap(w http.ResponseWriter, r *http.Request, defaultMode string) {
 		sym = strings.TrimSpace(strings.ToLower(sym))
 		price := getPrice(sym)
 		data = append(data, map[string]interface{}{
-			"id":           sym,
-			"rank":         "1",
-			"symbol":       strings.ToUpper(sym[:min(3, len(sym))]),
-			"name":         sym,
-			"supply":       "19000000",
-			"maxSupply":    "21000000",
-			"marketCapUsd": fmt.Sprintf("%.2f", price*19000000),
-			"volumeUsd24Hr": fmt.Sprintf("%.2f", price*500000),
-			"priceUsd":     fmt.Sprintf("%.2f", price),
+			"id":                sym,
+			"rank":              "1",
+			"symbol":            strings.ToUpper(sym[:min(3, len(sym))]),
+			"name":              sym,
+			"supply":            "19000000",
+			"maxSupply":         "21000000",
+			"marketCapUsd":      fmt.Sprintf("%.2f", price*19000000),
+			"volumeUsd24Hr":     fmt.Sprintf("%.2f", price*500000),
+			"priceUsd":          fmt.Sprintf("%.2f", price),
 			"changePercent24Hr": fmt.Sprintf("%.2f", (rand.Float64()-0.5)*10),
-			"vwap24Hr":     fmt.Sprintf("%.2f", price*0.99),
+			"vwap24Hr":          fmt.Sprintf("%.2f", price*0.99),
 		})
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"data": data,
+		"data":      data,
 		"timestamp": time.Now().UnixMilli(),
 	})
 }

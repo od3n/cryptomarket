@@ -111,12 +111,12 @@ func (ft *FreshnessTracker) Age(symbol string) time.Duration {
 
 // Summary provides an aggregate view of freshness across all symbols.
 type FreshnessSummary struct {
-	Total       int            `json:"total"`
-	Fresh       int            `json:"fresh"`
-	Delayed     int            `json:"delayed"`
-	Stale       int            `json:"stale"`
-	Unknown     int            `json:"unknown"`
-	OldestAge   *time.Duration `json:"oldest_age,omitempty"`
+	Total        int            `json:"total"`
+	Fresh        int            `json:"fresh"`
+	Delayed      int            `json:"delayed"`
+	Stale        int            `json:"stale"`
+	Unknown      int            `json:"unknown"`
+	OldestAge    *time.Duration `json:"oldest_age,omitempty"`
 	OverallState FreshnessState `json:"overall_state"`
 }
 
