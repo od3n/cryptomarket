@@ -96,7 +96,7 @@ func calculateDelay(attempt int, baseDelay, maxDelay time.Duration) time.Duratio
 	}
 
 	// Full jitter: random value between 0 and backoff.
-	jittered := time.Duration(rand.Float64() * backoff)
+	jittered := time.Duration(rand.Float64() * backoff) //nolint:gosec // G404: jitter needs no cryptographic randomness
 	if jittered < time.Millisecond {
 		jittered = time.Millisecond
 	}

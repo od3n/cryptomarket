@@ -34,11 +34,25 @@ func (m *MarketData) Validate() error {
 		validationFailuresTotal.WithLabelValues(m.Provider, "symbol").Inc()
 		return &ValidationError{Field: "symbol", Value: m.Symbol, Message: "symbol is required"}
 	}
+	if err := m.validatePriceUSD(); err != nil {
+		return err
+	}
+	if err := m.validateOptionalMetrics(); err != nil {
+		return err
+	}
+	if m.Provider == "" {
+		validationFailuresTotal.WithLabelValues("unknown", "provider").Inc()
+		return &ValidationError{Field: "provider", Value: m.Provider, Message: fmt.Sprintf("provider is required for %s", m.Symbol)}
+	}
+	return m.validateTimestamp()
+}
+
+// validatePriceUSD ensures price_usd is present, numeric, and positive.
+func (m *MarketData) validatePriceUSD() error {
 	if m.PriceUSD == "" {
 		validationFailuresTotal.WithLabelValues(m.Provider, "price_usd").Inc()
 		return &ValidationError{Field: "price_usd", Value: m.PriceUSD, Message: fmt.Sprintf("price_usd is required for %s", m.Symbol)}
 	}
-
 	price, err := strconv.ParseFloat(m.PriceUSD, 64)
 	if err != nil {
 		validationFailuresTotal.WithLabelValues(m.Provider, "price_usd").Inc()
@@ -48,50 +62,50 @@ func (m *MarketData) Validate() error {
 		validationFailuresTotal.WithLabelValues(m.Provider, "price_usd").Inc()
 		return &ValidationError{Field: "price_usd", Value: m.PriceUSD, Message: fmt.Sprintf("price must be greater than zero for %s", m.Symbol)}
 	}
+	return nil
+}
 
-	if m.MarketCap != "" {
-		mc, err := strconv.ParseFloat(m.MarketCap, 64)
-		if err != nil {
-			validationFailuresTotal.WithLabelValues(m.Provider, "market_cap").Inc()
-			return &ValidationError{Field: "market_cap", Value: m.MarketCap, Message: fmt.Sprintf("invalid market_cap for %s: %v", m.Symbol, err)}
-		}
-		if mc < 0 {
-			validationFailuresTotal.WithLabelValues(m.Provider, "market_cap").Inc()
-			return &ValidationError{Field: "market_cap", Value: m.MarketCap, Message: fmt.Sprintf("market_cap cannot be negative for %s", m.Symbol)}
-		}
+// validateOptionalMetrics checks the optional numeric fields when present.
+func (m *MarketData) validateOptionalMetrics() error {
+	if err := m.validateNonNegative("market_cap", m.MarketCap); err != nil {
+		return err
 	}
-
-	if m.Volume24h != "" {
-		vol, err := strconv.ParseFloat(m.Volume24h, 64)
-		if err != nil {
-			validationFailuresTotal.WithLabelValues(m.Provider, "volume_24h").Inc()
-			return &ValidationError{Field: "volume_24h", Value: m.Volume24h, Message: fmt.Sprintf("invalid volume_24h for %s: %v", m.Symbol, err)}
-		}
-		if vol < 0 {
-			validationFailuresTotal.WithLabelValues(m.Provider, "volume_24h").Inc()
-			return &ValidationError{Field: "volume_24h", Value: m.Volume24h, Message: fmt.Sprintf("volume_24h cannot be negative for %s", m.Symbol)}
-		}
+	if err := m.validateNonNegative("volume_24h", m.Volume24h); err != nil {
+		return err
 	}
-
 	if m.Change24h != "" {
 		if _, err := strconv.ParseFloat(m.Change24h, 64); err != nil {
 			validationFailuresTotal.WithLabelValues(m.Provider, "change_24h").Inc()
 			return &ValidationError{Field: "change_24h", Value: m.Change24h, Message: fmt.Sprintf("invalid change_24h for %s: %v", m.Symbol, err)}
 		}
 	}
+	return nil
+}
 
-	if m.Provider == "" {
-		validationFailuresTotal.WithLabelValues("unknown", "provider").Inc()
-		return &ValidationError{Field: "provider", Value: m.Provider, Message: fmt.Sprintf("provider is required for %s", m.Symbol)}
+// validateNonNegative checks an optional numeric field is parseable and not negative.
+func (m *MarketData) validateNonNegative(field, value string) error {
+	if value == "" {
+		return nil
 	}
+	v, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		validationFailuresTotal.WithLabelValues(m.Provider, field).Inc()
+		return &ValidationError{Field: field, Value: value, Message: fmt.Sprintf("invalid %s for %s: %v", field, m.Symbol, err)}
+	}
+	if v < 0 {
+		validationFailuresTotal.WithLabelValues(m.Provider, field).Inc()
+		return &ValidationError{Field: field, Value: value, Message: fmt.Sprintf("%s cannot be negative for %s", field, m.Symbol)}
+	}
+	return nil
+}
 
-	// Validate timestamp is not excessively in the future.
+// validateTimestamp ensures fetched_at is not excessively in the future.
+func (m *MarketData) validateTimestamp() error {
 	if !m.FetchedAt.IsZero() {
 		if m.FetchedAt.After(time.Now().Add(maxFutureTimestamp)) {
 			validationFailuresTotal.WithLabelValues(m.Provider, "fetched_at").Inc()
 			return &ValidationError{Field: "fetched_at", Value: m.FetchedAt.String(), Message: fmt.Sprintf("timestamp is too far in the future for %s", m.Symbol)}
 		}
 	}
-
 	return nil
 }

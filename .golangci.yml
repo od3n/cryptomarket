@@ -134,6 +134,11 @@ issues:
     - path: cmd/
       linters:
         - forbidigo
+    # Mock provider generates fake test data; weak randomness is fine
+    - path: cmd/mockprovider/
+      text: "G404"
+      linters:
+        - gosec
     # Allow longer functions in test files
     - path: _test\.go
       linters:

@@ -83,54 +83,72 @@ func (h *Handler) OperationsStatus(w http.ResponseWriter, r *http.Request) {
 		status.Status = StateUnavailable
 	}
 
-	// Provider / ingestion status.
-	if h.statusReporter != nil && h.statusReporter.orchestrator != nil {
-		orchStatus := h.statusReporter.orchestrator.Status()
-		status.Provider = orchStatus
-		status.Ingestion = IngestionStatus{
-			Active:         true,
-			ActiveProvider: orchStatus.ActiveProvider,
-			Degraded:       orchStatus.Degraded,
-		}
-
-		if orchStatus.Degraded && status.Status == StateHealthy {
-			status.Status = StateDegraded
-		}
-
-		// Check if all circuit breakers are open.
-		allOpen := len(orchStatus.CircuitStates) > 0
-		for _, state := range orchStatus.CircuitStates {
-			if state != "open" {
-				allOpen = false
-				break
-			}
-		}
-		if allOpen {
-			status.Status = StateUnavailable
-		}
-	} else {
-		status.Ingestion = IngestionStatus{Active: false}
-	}
-
-	// Freshness status.
-	if h.statusReporter != nil && h.statusReporter.freshnessTracker != nil {
-		summary := h.statusReporter.freshnessTracker.Summary()
-		status.Freshness = &summary
-
-		if summary.OverallState == market.FreshnessStale && status.Status == StateHealthy {
-			status.Status = StateStale
-		}
-	}
-
-	// Recent anomalies.
-	if h.statusReporter != nil && h.statusReporter.anomalyDetector != nil {
-		anomalies := h.statusReporter.anomalyDetector.RecentAnomalies(10)
-		if len(anomalies) > 0 {
-			status.RecentAnomalies = anomalies
-		}
-	}
+	h.applyProviderStatus(&status)
+	h.applyFreshnessStatus(&status)
+	h.applyRecentAnomalies(&status)
 
 	writeJSON(w, http.StatusOK, status)
+}
+
+// applyProviderStatus fills in provider and ingestion state from the orchestrator.
+func (h *Handler) applyProviderStatus(status *OperationsStatus) {
+	if h.statusReporter == nil || h.statusReporter.orchestrator == nil {
+		status.Ingestion = IngestionStatus{Active: false}
+		return
+	}
+
+	orchStatus := h.statusReporter.orchestrator.Status()
+	status.Provider = orchStatus
+	status.Ingestion = IngestionStatus{
+		Active:         true,
+		ActiveProvider: orchStatus.ActiveProvider,
+		Degraded:       orchStatus.Degraded,
+	}
+
+	if orchStatus.Degraded && status.Status == StateHealthy {
+		status.Status = StateDegraded
+	}
+
+	if allCircuitsOpen(orchStatus.CircuitStates) {
+		status.Status = StateUnavailable
+	}
+}
+
+// allCircuitsOpen reports whether every circuit breaker is open.
+func allCircuitsOpen(states map[string]string) bool {
+	if len(states) == 0 {
+		return false
+	}
+	for _, state := range states {
+		if state != "open" {
+			return false
+		}
+	}
+	return true
+}
+
+// applyFreshnessStatus fills in data freshness state.
+func (h *Handler) applyFreshnessStatus(status *OperationsStatus) {
+	if h.statusReporter == nil || h.statusReporter.freshnessTracker == nil {
+		return
+	}
+	summary := h.statusReporter.freshnessTracker.Summary()
+	status.Freshness = &summary
+
+	if summary.OverallState == market.FreshnessStale && status.Status == StateHealthy {
+		status.Status = StateStale
+	}
+}
+
+// applyRecentAnomalies attaches recently detected anomalies.
+func (h *Handler) applyRecentAnomalies(status *OperationsStatus) {
+	if h.statusReporter == nil || h.statusReporter.anomalyDetector == nil {
+		return
+	}
+	anomalies := h.statusReporter.anomalyDetector.RecentAnomalies(10)
+	if len(anomalies) > 0 {
+		status.RecentAnomalies = anomalies
+	}
 }
 
 // checkDependencies checks the health of PostgreSQL and Redis.

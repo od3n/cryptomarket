@@ -134,21 +134,8 @@ func (c *Consumer) Run(ctx context.Context) error {
 		}).Result()
 
 		if err != nil {
-			if errors.Is(err, redis.Nil) {
-				continue
-			}
-			if ctx.Err() != nil {
-				return fmt.Errorf("consumer stopped: %w", ctx.Err())
-			}
-			c.logger.Error("xreadgroup failed", slog.String("error", err.Error()))
-			if c.metrics != nil {
-				c.metrics.IncRedisReconnects()
-			}
-			// Back off on transient errors.
-			select {
-			case <-ctx.Done():
-				return fmt.Errorf("consumer stopped: %w", ctx.Err())
-			case <-time.After(2 * time.Second):
+			if stopErr := c.handleReadError(ctx, err); stopErr != nil {
+				return stopErr
 			}
 			continue
 		}
@@ -159,6 +146,29 @@ func (c *Consumer) Run(ctx context.Context) error {
 			}
 		}
 	}
+}
+
+// handleReadError classifies an XReadGroup failure. It returns a non-nil
+// error when the consumer must stop, and nil after logging and backing off
+// on transient errors so the read loop can continue.
+func (c *Consumer) handleReadError(ctx context.Context, err error) error {
+	if errors.Is(err, redis.Nil) {
+		return nil
+	}
+	if ctx.Err() != nil {
+		return fmt.Errorf("consumer stopped: %w", ctx.Err())
+	}
+	c.logger.Error("xreadgroup failed", slog.String("error", err.Error()))
+	if c.metrics != nil {
+		c.metrics.IncRedisReconnects()
+	}
+	// Back off on transient errors.
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("consumer stopped: %w", ctx.Err())
+	case <-time.After(2 * time.Second):
+	}
+	return nil
 }
 
 // processEntry parses, validates, deduplicates, and dispatches a single stream entry.
@@ -209,19 +219,7 @@ func (c *Consumer) processEntry(ctx context.Context, entry redis.XMessage) {
 func (c *Consumer) parseEntry(entry redis.XMessage) (*PriceEvent, error) {
 	// Try new format: full event JSON in "data" field.
 	if dataStr, ok := entry.Values["data"].(string); ok {
-		event, err := ParseEvent([]byte(dataStr))
-		if err != nil {
-			return nil, err
-		}
-		// If event_id is empty, this might be legacy format.
-		if event.EventID != "" {
-			if err := event.Validate(); err != nil {
-				return nil, err
-			}
-			return event, nil
-		}
-		// Legacy format: data contains LatestMarketData JSON.
-		return c.parseLegacyEntry(entry, dataStr)
+		return c.parseDataField(entry, dataStr)
 	}
 
 	// Try direct field format (all fields at top level).
@@ -232,6 +230,24 @@ func (c *Consumer) parseEntry(entry redis.XMessage) (*PriceEvent, error) {
 	event, err := ParseEvent(payload)
 	if err != nil {
 		return nil, err
+	}
+	if err := event.Validate(); err != nil {
+		return nil, err
+	}
+	return event, nil
+}
+
+// parseDataField parses the "data" field payload, falling back to the
+// legacy {symbol, data} wrapper when no event_id is present.
+func (c *Consumer) parseDataField(entry redis.XMessage, dataStr string) (*PriceEvent, error) {
+	event, err := ParseEvent([]byte(dataStr))
+	if err != nil {
+		return nil, err
+	}
+	// If event_id is empty, this might be legacy format.
+	if event.EventID == "" {
+		// Legacy format: data contains LatestMarketData JSON.
+		return c.parseLegacyEntry(entry, dataStr)
 	}
 	if err := event.Validate(); err != nil {
 		return nil, err

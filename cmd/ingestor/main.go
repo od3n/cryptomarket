@@ -153,8 +153,9 @@ func main() {
 		w.Write([]byte(`{"status":"ok"}`))
 	})
 	metricsServer := &http.Server{
-		Addr:    ":" + metricsPort,
-		Handler: metricsMux,
+		Addr:              ":" + metricsPort,
+		Handler:           metricsMux,
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 	go func() {
 		logger.Info("metrics server started", slog.String("port", metricsPort))

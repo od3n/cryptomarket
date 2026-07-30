@@ -92,7 +92,9 @@ func (r *PostgresSnapshotRepository) GetHistory(ctx context.Context, coinID int6
 		argIdx++
 	}
 
-	query := fmt.Sprintf(
+	// The WHERE clause is assembled from fixed fragments with positional
+	// placeholders only; all values are passed via args.
+	query := fmt.Sprintf( //nolint:gosec // G201: no user input is interpolated
 		`SELECT id, coin_id, price_usd, market_cap, volume_24h, change_24h, provider, captured_at
 		 FROM price_snapshots WHERE %s ORDER BY captured_at DESC LIMIT $%d`,
 		strings.Join(conditions, " AND "), argIdx)

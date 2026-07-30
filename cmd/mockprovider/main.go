@@ -66,7 +66,12 @@ func main() {
 
 	addr := ":" + port
 	log.Printf("mock provider listening on %s (mode=%s)", addr, defaultMode)
-	if err := http.ListenAndServe(addr, mux); err != nil {
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+	if err := srv.ListenAndServe(); err != nil {
 		log.Fatal(err)
 	}
 }
