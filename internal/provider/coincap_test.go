@@ -89,7 +89,7 @@ func TestCoinCapProvider_FetchMarketData_EmptySymbols(t *testing.T) {
 }
 
 func TestCoinCapProvider_FetchMarketData_RateLimited(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusTooManyRequests)
 		w.Write([]byte(`{"error": "rate limit exceeded"}`))
 	}))
@@ -109,7 +109,7 @@ func TestCoinCapProvider_FetchMarketData_RateLimited(t *testing.T) {
 }
 
 func TestCoinCapProvider_FetchMarketData_ServerError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(`internal error`))
 	}))
@@ -129,7 +129,7 @@ func TestCoinCapProvider_FetchMarketData_ServerError(t *testing.T) {
 }
 
 func TestCoinCapProvider_FetchMarketData_ClientError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte(`bad request`))
 	}))
@@ -149,7 +149,7 @@ func TestCoinCapProvider_FetchMarketData_ClientError(t *testing.T) {
 }
 
 func TestCoinCapProvider_FetchMarketData_MalformedJSON(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{invalid json`))
@@ -167,7 +167,7 @@ func TestCoinCapProvider_FetchMarketData_MalformedJSON(t *testing.T) {
 }
 
 func TestCoinCapProvider_FetchMarketData_ContextCancelled(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(2 * time.Second)
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -187,7 +187,7 @@ func TestCoinCapProvider_FetchMarketData_ContextCancelled(t *testing.T) {
 }
 
 func TestCoinCapProvider_FetchMarketData_SkipsInvalidPrice(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{

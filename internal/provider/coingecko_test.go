@@ -52,7 +52,7 @@ func TestCoinGeckoProvider_FetchMarketData_Success(t *testing.T) {
 }
 
 func TestCoinGeckoProvider_FetchMarketData_NonSuccessStatus(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusTooManyRequests)
 		w.Write([]byte(`{"error":"rate limited"}`))
 	}))
@@ -74,7 +74,7 @@ func TestCoinGeckoProvider_FetchMarketData_NonSuccessStatus(t *testing.T) {
 }
 
 func TestCoinGeckoProvider_FetchMarketData_InvalidJSON(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`not json`))
 	}))
@@ -88,7 +88,7 @@ func TestCoinGeckoProvider_FetchMarketData_InvalidJSON(t *testing.T) {
 }
 
 func TestCoinGeckoProvider_FetchMarketData_ContextCancelled(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(2 * time.Second)
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -116,7 +116,7 @@ func TestCoinGeckoProvider_FetchMarketData_EmptySymbols(t *testing.T) {
 }
 
 func TestCoinGeckoProvider_FetchMarketData_NilPrice(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`[{"id":"bitcoin","symbol":"btc","current_price":null}]`))

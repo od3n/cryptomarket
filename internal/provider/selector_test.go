@@ -13,7 +13,7 @@ type mockProvider struct {
 }
 
 func (m *mockProvider) Name() string { return m.name }
-func (m *mockProvider) FetchMarketData(ctx context.Context, symbols []string) ([]market.MarketData, error) {
+func (m *mockProvider) FetchMarketData(_ context.Context, _ []string) ([]market.MarketData, error) {
 	return nil, nil
 }
 

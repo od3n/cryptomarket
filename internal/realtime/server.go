@@ -45,7 +45,7 @@ func (s *Server) Router() http.Handler {
 }
 
 // Health returns a simple liveness check.
-func (s *Server) Health(w http.ResponseWriter, r *http.Request) {
+func (s *Server) Health(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"status":"ok"}`))
@@ -139,7 +139,7 @@ func (s *Server) replayEvents(ctx context.Context, client *subscriber.Client, af
 }
 
 // HandleEvent is the stream event handler that broadcasts to all clients.
-func (s *Server) HandleEvent(ctx context.Context, msg stream.StreamMessage) error {
+func (s *Server) HandleEvent(_ context.Context, msg stream.StreamMessage) error {
 	s.hub.Broadcast(msg.Event)
 	s.metrics.EventsBroadcast.Inc()
 	return nil

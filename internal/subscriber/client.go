@@ -125,7 +125,9 @@ func (c *Client) close() {
 
 // ServeSSE writes SSE events to the HTTP response writer.
 // It handles heartbeats, client disconnects, and graceful shutdown.
-func (c *Client) ServeSSE(w http.ResponseWriter, r *http.Request, lastEventID string) {
+// The last event ID is accepted for future replay support but not yet used
+// (see ADR-005: latest-state delivery policy).
+func (c *Client) ServeSSE(w http.ResponseWriter, r *http.Request, _ string) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "streaming unsupported", http.StatusInternalServerError)

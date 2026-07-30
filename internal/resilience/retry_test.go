@@ -15,7 +15,7 @@ func TestRetry_SuccessFirstAttempt(t *testing.T) {
 	}
 
 	attempts := 0
-	err := Retry(context.Background(), cfg, func(ctx context.Context) error {
+	err := Retry(context.Background(), cfg, func(_ context.Context) error {
 		attempts++
 		return nil
 	})
@@ -36,7 +36,7 @@ func TestRetry_SuccessAfterRetries(t *testing.T) {
 	}
 
 	attempts := 0
-	err := Retry(context.Background(), cfg, func(ctx context.Context) error {
+	err := Retry(context.Background(), cfg, func(_ context.Context) error {
 		attempts++
 		if attempts < 3 {
 			return errors.New("transient error")
@@ -60,7 +60,7 @@ func TestRetry_ExhaustsAttempts(t *testing.T) {
 	}
 
 	attempts := 0
-	err := Retry(context.Background(), cfg, func(ctx context.Context) error {
+	err := Retry(context.Background(), cfg, func(_ context.Context) error {
 		attempts++
 		return errors.New("persistent error")
 	})
@@ -88,7 +88,7 @@ func TestRetry_RespectsContextCancellation(t *testing.T) {
 		cancel()
 	}()
 
-	err := Retry(ctx, cfg, func(ctx context.Context) error {
+	err := Retry(ctx, cfg, func(_ context.Context) error {
 		attempts++
 		return errors.New("error")
 	})
@@ -113,7 +113,7 @@ func TestRetry_NonRetryableError(t *testing.T) {
 	}
 
 	attempts := 0
-	err := Retry(context.Background(), cfg, func(ctx context.Context) error {
+	err := Retry(context.Background(), cfg, func(_ context.Context) error {
 		attempts++
 		return permanentErr
 	})
@@ -137,7 +137,7 @@ func TestRetry_ExponentialBackoff(t *testing.T) {
 	var lastTime time.Time
 	first := true
 
-	_ = Retry(context.Background(), cfg, func(ctx context.Context) error {
+	_ = Retry(context.Background(), cfg, func(_ context.Context) error {
 		now := time.Now()
 		if !first {
 			delays = append(delays, now.Sub(lastTime))
@@ -172,7 +172,7 @@ func TestRetryWithResult_Success(t *testing.T) {
 	}
 
 	attempts := 0
-	result, err := RetryWithResult(context.Background(), cfg, func(ctx context.Context) (string, error) {
+	result, err := RetryWithResult(context.Background(), cfg, func(_ context.Context) (string, error) {
 		attempts++
 		if attempts < 2 {
 			return "", errors.New("transient")
@@ -198,7 +198,7 @@ func TestRetryWithResult_Error(t *testing.T) {
 		MaxDelay:    10 * time.Millisecond,
 	}
 
-	result, err := RetryWithResult(context.Background(), cfg, func(ctx context.Context) (int, error) {
+	result, err := RetryWithResult(context.Background(), cfg, func(_ context.Context) (int, error) {
 		return 0, errors.New("always fails")
 	})
 

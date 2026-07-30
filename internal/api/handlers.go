@@ -56,7 +56,7 @@ func (h *Handler) SetStatusReporter(sr *StatusReporter) {
 }
 
 // Health returns a simple liveness check.
-func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 

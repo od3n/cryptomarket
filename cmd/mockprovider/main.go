@@ -52,11 +52,11 @@ func main() {
 	mux.HandleFunc("/v2/assets", func(w http.ResponseWriter, r *http.Request) {
 		handleCoinCap(w, r, defaultMode)
 	})
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok", "mode": defaultMode})
 	})
-	mux.HandleFunc("/mode", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/mode", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]string{
 			"default_mode": defaultMode,

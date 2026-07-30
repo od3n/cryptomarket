@@ -20,7 +20,7 @@ type testProvider struct {
 }
 
 func (p *testProvider) Name() string { return p.name }
-func (p *testProvider) FetchMarketData(ctx context.Context, symbols []string) ([]market.MarketData, error) {
+func (p *testProvider) FetchMarketData(_ context.Context, _ []string) ([]market.MarketData, error) {
 	if p.err != nil {
 		return nil, p.err
 	}

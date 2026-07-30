@@ -28,7 +28,7 @@ func DefaultRetryConfig() RetryConfig {
 		MaxAttempts: 3,
 		BaseDelay:   500 * time.Millisecond,
 		MaxDelay:    10 * time.Second,
-		RetryableFunc: func(err error) bool {
+		RetryableFunc: func(_ error) bool {
 			return true // Default: retry all errors
 		},
 	}

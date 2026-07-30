@@ -21,11 +21,11 @@ type mockCoinRepo struct {
 	coins []market.Coin
 }
 
-func (m *mockCoinRepo) GetActiveCoins(ctx context.Context) ([]market.Coin, error) {
+func (m *mockCoinRepo) GetActiveCoins(_ context.Context) ([]market.Coin, error) {
 	return m.coins, nil
 }
 
-func (m *mockCoinRepo) GetBySymbol(ctx context.Context, symbol string) (*market.Coin, error) {
+func (m *mockCoinRepo) GetBySymbol(_ context.Context, symbol string) (*market.Coin, error) {
 	for _, c := range m.coins {
 		if c.Symbol == symbol {
 			return &c, nil
@@ -39,12 +39,12 @@ type mockSnapshotRepo struct {
 	snapshots []market.PriceSnapshot
 }
 
-func (m *mockSnapshotRepo) InsertBatch(ctx context.Context, snapshots []market.PriceSnapshot) error {
+func (m *mockSnapshotRepo) InsertBatch(_ context.Context, snapshots []market.PriceSnapshot) error {
 	m.snapshots = append(m.snapshots, snapshots...)
 	return nil
 }
 
-func (m *mockSnapshotRepo) GetLatestByCoin(ctx context.Context, coinID int64) (*market.PriceSnapshot, error) {
+func (m *mockSnapshotRepo) GetLatestByCoin(_ context.Context, coinID int64) (*market.PriceSnapshot, error) {
 	for _, s := range m.snapshots {
 		if s.CoinID == coinID {
 			return &s, nil
@@ -53,7 +53,7 @@ func (m *mockSnapshotRepo) GetLatestByCoin(ctx context.Context, coinID int64) (*
 	return nil, nil
 }
 
-func (m *mockSnapshotRepo) GetHistory(ctx context.Context, coinID int64, limit int, before *time.Time, from *time.Time, to *time.Time) ([]market.PriceSnapshot, error) {
+func (m *mockSnapshotRepo) GetHistory(_ context.Context, coinID int64, limit int, _ *time.Time, _ *time.Time, _ *time.Time) ([]market.PriceSnapshot, error) {
 	var result []market.PriceSnapshot
 	for _, s := range m.snapshots {
 		if s.CoinID == coinID {
