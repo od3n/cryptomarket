@@ -39,9 +39,11 @@ export function useMarketStream({
   const onEventRef = useRef(onEvent);
   const onErrorRef = useRef(onError);
 
-  // Keep refs updated
-  onEventRef.current = onEvent;
-  onErrorRef.current = onError;
+  // Keep refs updated with the latest callbacks after each render.
+  useEffect(() => {
+    onEventRef.current = onEvent;
+    onErrorRef.current = onError;
+  });
 
   const connect = useCallback(() => {
     // Clean up existing connection
