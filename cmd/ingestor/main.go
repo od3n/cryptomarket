@@ -75,8 +75,8 @@ func main() {
 	registry.SetBaseURL("coincap", cfg.CoinCapBaseURL)
 
 	// Create providers in priority order.
-	var providers []provider.Provider
 	providerNames := append([]string{cfg.ProviderPrimary}, cfg.ProviderFallback...)
+	providers := make([]provider.Provider, 0, len(providerNames))
 	for _, name := range providerNames {
 		p, err := registry.Create(name, cfg.ProviderBaseURL, cfg.ProviderTimeout)
 		if err != nil {

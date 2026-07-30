@@ -3,7 +3,6 @@ package api
 import (
 	"crypto/hmac"
 	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -224,9 +223,4 @@ func base64URLDecode(s string) ([]byte, error) {
 		return nil, fmt.Errorf("decode base64url: %w", err)
 	}
 	return decoded, nil
-}
-
-// constantTimeEqual performs a constant-time string comparison.
-func constantTimeEqual(a, b string) bool {
-	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
 }

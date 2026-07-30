@@ -179,7 +179,7 @@ func TestCoinCapProvider_FetchMarketData_ContextCancelled(t *testing.T) {
 	p := NewCoinCapProvider(server.URL, 5*time.Second)
 	_, err := p.FetchMarketData(ctx, []string{"bitcoin"})
 	if err == nil {
-		t.Fatal("expected error for cancelled context")
+		t.Fatal("expected error for canceled context")
 	}
 	if !IsTransient(err) {
 		t.Errorf("timeout should be transient, got: %v", err)

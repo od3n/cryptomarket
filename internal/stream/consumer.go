@@ -98,7 +98,7 @@ func (c *Consumer) EnsureGroup(ctx context.Context) error {
 	return nil
 }
 
-// Run starts consuming events. It blocks until the context is cancelled.
+// Run starts consuming events. It blocks until the context is canceled.
 func (c *Consumer) Run(ctx context.Context) error {
 	c.mu.Lock()
 	c.running = true

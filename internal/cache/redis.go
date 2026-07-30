@@ -100,7 +100,7 @@ func (c *MarketCache) GetAllLatest(ctx context.Context, symbols []string) ([]mar
 		return nil, fmt.Errorf("mget latest: %w", err)
 	}
 
-	var results []market.LatestMarketData
+	results := make([]market.LatestMarketData, 0, len(payloads))
 	for _, p := range payloads {
 		if p == nil {
 			continue

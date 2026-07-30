@@ -24,7 +24,7 @@ func New(interval time.Duration, fn func(ctx context.Context) error, logger *slo
 	}
 }
 
-// Start begins the periodic execution. It blocks until the context is cancelled.
+// Start begins the periodic execution. It blocks until the context is canceled.
 func (s *Scheduler) Start(ctx context.Context) {
 	s.logger.Info("scheduler started", slog.Duration("interval", s.interval))
 

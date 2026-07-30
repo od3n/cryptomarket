@@ -169,8 +169,8 @@ func (h *Handler) CoinBySymbol(w http.ResponseWriter, r *http.Request) {
 
 	// Try cache first.
 	if h.cache != nil {
-		latest, err := h.cache.GetLatest(ctx, symbol)
-		if err == nil && latest != nil {
+		latest, cacheErr := h.cache.GetLatest(ctx, symbol)
+		if cacheErr == nil && latest != nil {
 			writeJSON(w, http.StatusOK, latest)
 			return
 		}
@@ -236,24 +236,24 @@ func (h *Handler) CoinHistory(w http.ResponseWriter, r *http.Request) {
 
 	var before, from, to *time.Time
 	if v := r.URL.Query().Get("before"); v != "" {
-		t, err := time.Parse(time.RFC3339, v)
-		if err != nil {
+		t, parseErr := time.Parse(time.RFC3339, v)
+		if parseErr != nil {
 			writeError(w, http.StatusBadRequest, "invalid 'before' parameter, use RFC3339 format")
 			return
 		}
 		before = &t
 	}
 	if v := r.URL.Query().Get("from"); v != "" {
-		t, err := time.Parse(time.RFC3339, v)
-		if err != nil {
+		t, parseErr := time.Parse(time.RFC3339, v)
+		if parseErr != nil {
 			writeError(w, http.StatusBadRequest, "invalid 'from' parameter, use RFC3339 format")
 			return
 		}
 		from = &t
 	}
 	if v := r.URL.Query().Get("to"); v != "" {
-		t, err := time.Parse(time.RFC3339, v)
-		if err != nil {
+		t, parseErr := time.Parse(time.RFC3339, v)
+		if parseErr != nil {
 			writeError(w, http.StatusBadRequest, "invalid 'to' parameter, use RFC3339 format")
 			return
 		}

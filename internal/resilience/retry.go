@@ -52,7 +52,7 @@ func Retry(ctx context.Context, cfg RetryConfig, fn func(ctx context.Context) er
 	for attempt := 0; attempt < cfg.MaxAttempts; attempt++ {
 		// Check context before attempting.
 		if ctx.Err() != nil {
-			retryAttemptsTotal.WithLabelValues("cancelled").Inc()
+			retryAttemptsTotal.WithLabelValues("canceled").Inc()
 			return fmt.Errorf("retry aborted: %w", ctx.Err())
 		}
 
@@ -76,7 +76,7 @@ func Retry(ctx context.Context, cfg RetryConfig, fn func(ctx context.Context) er
 
 			select {
 			case <-ctx.Done():
-				retryAttemptsTotal.WithLabelValues("cancelled").Inc()
+				retryAttemptsTotal.WithLabelValues("canceled").Inc()
 				return fmt.Errorf("retry aborted: %w", ctx.Err())
 			case <-time.After(delay):
 			}
@@ -110,7 +110,7 @@ func RetryWithResult[T any](ctx context.Context, cfg RetryConfig, fn func(ctx co
 
 	for attempt := 0; attempt < cfg.MaxAttempts; attempt++ {
 		if ctx.Err() != nil {
-			retryAttemptsTotal.WithLabelValues("cancelled").Inc()
+			retryAttemptsTotal.WithLabelValues("canceled").Inc()
 			return result, fmt.Errorf("retry aborted: %w", ctx.Err())
 		}
 
@@ -131,7 +131,7 @@ func RetryWithResult[T any](ctx context.Context, cfg RetryConfig, fn func(ctx co
 			delay := calculateDelay(attempt, cfg.BaseDelay, cfg.MaxDelay)
 			select {
 			case <-ctx.Done():
-				retryAttemptsTotal.WithLabelValues("cancelled").Inc()
+				retryAttemptsTotal.WithLabelValues("canceled").Inc()
 				return result, fmt.Errorf("retry aborted: %w", ctx.Err())
 			case <-time.After(delay):
 			}

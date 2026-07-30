@@ -110,7 +110,7 @@ func handleCoinCap(w http.ResponseWriter, r *http.Request, defaultMode string) {
 	ids := r.URL.Query().Get("ids")
 	symbols := strings.Split(ids, ",")
 
-	var data []map[string]interface{}
+	data := make([]map[string]interface{}, 0, len(symbols))
 	for _, sym := range symbols {
 		sym = strings.TrimSpace(strings.ToLower(sym))
 		price := getPrice(sym)

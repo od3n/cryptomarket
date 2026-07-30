@@ -257,8 +257,8 @@ func (m *Manager) Get(name string) *CircuitBreaker {
 	defer m.mu.Unlock()
 
 	// Double-check after acquiring write lock.
-	if cb, ok := m.breakers[name]; ok {
-		return cb
+	if existing, ok := m.breakers[name]; ok {
+		return existing
 	}
 
 	cfg := m.config
