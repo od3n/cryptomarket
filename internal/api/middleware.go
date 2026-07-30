@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -212,7 +213,11 @@ type gzipResponseWriter struct {
 }
 
 func (w *gzipResponseWriter) Write(b []byte) (int, error) {
-	return w.Writer.Write(b)
+	n, err := w.Writer.Write(b)
+	if err != nil {
+		return n, fmt.Errorf("gzip write: %w", err)
+	}
+	return n, nil
 }
 
 var gzipPool = sync.Pool{

@@ -219,7 +219,11 @@ func base64URLDecode(s string) ([]byte, error) {
 	case 3:
 		s += "="
 	}
-	return base64.URLEncoding.DecodeString(s)
+	decoded, err := base64.URLEncoding.DecodeString(s)
+	if err != nil {
+		return nil, fmt.Errorf("decode base64url: %w", err)
+	}
+	return decoded, nil
 }
 
 // constantTimeEqual performs a constant-time string comparison.

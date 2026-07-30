@@ -141,5 +141,8 @@ func getAppliedMigrations(ctx context.Context, db *sql.DB) (map[string]bool, err
 		}
 		applied[name] = true
 	}
-	return applied, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate applied migrations: %w", err)
+	}
+	return applied, nil
 }

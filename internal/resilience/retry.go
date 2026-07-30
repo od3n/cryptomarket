@@ -2,6 +2,7 @@ package resilience
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"math/rand"
 	"time"
@@ -52,7 +53,7 @@ func Retry(ctx context.Context, cfg RetryConfig, fn func(ctx context.Context) er
 		// Check context before attempting.
 		if ctx.Err() != nil {
 			retryAttemptsTotal.WithLabelValues("cancelled").Inc()
-			return ctx.Err()
+			return fmt.Errorf("retry aborted: %w", ctx.Err())
 		}
 
 		lastErr = fn(ctx)
@@ -76,7 +77,7 @@ func Retry(ctx context.Context, cfg RetryConfig, fn func(ctx context.Context) er
 			select {
 			case <-ctx.Done():
 				retryAttemptsTotal.WithLabelValues("cancelled").Inc()
-				return ctx.Err()
+				return fmt.Errorf("retry aborted: %w", ctx.Err())
 			case <-time.After(delay):
 			}
 		}
@@ -110,7 +111,7 @@ func RetryWithResult[T any](ctx context.Context, cfg RetryConfig, fn func(ctx co
 	for attempt := 0; attempt < cfg.MaxAttempts; attempt++ {
 		if ctx.Err() != nil {
 			retryAttemptsTotal.WithLabelValues("cancelled").Inc()
-			return result, ctx.Err()
+			return result, fmt.Errorf("retry aborted: %w", ctx.Err())
 		}
 
 		result, lastErr = fn(ctx)
@@ -131,7 +132,7 @@ func RetryWithResult[T any](ctx context.Context, cfg RetryConfig, fn func(ctx co
 			select {
 			case <-ctx.Done():
 				retryAttemptsTotal.WithLabelValues("cancelled").Inc()
-				return result, ctx.Err()
+				return result, fmt.Errorf("retry aborted: %w", ctx.Err())
 			case <-time.After(delay):
 			}
 		}

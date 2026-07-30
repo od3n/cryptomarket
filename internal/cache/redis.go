@@ -171,5 +171,8 @@ func (c *MarketCache) PublishEvent(ctx context.Context, data market.LatestMarket
 
 // Ping checks Redis connectivity.
 func (c *MarketCache) Ping(ctx context.Context) error {
-	return c.client.Ping(ctx).Err()
+	if err := c.client.Ping(ctx).Err(); err != nil {
+		return fmt.Errorf("redis ping: %w", err)
+	}
+	return nil
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -87,7 +88,7 @@ func main() {
 	defer runCancel()
 
 	go func() {
-		if err := consumer.Run(runCtx); err != nil && err != context.Canceled {
+		if err := consumer.Run(runCtx); err != nil && !errors.Is(err, context.Canceled) {
 			logger.Error("stream consumer error", slog.String("error", err.Error()))
 		}
 	}()

@@ -46,7 +46,10 @@ func (r *PostgresSnapshotRepository) InsertBatch(ctx context.Context, snapshots 
 		}
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit snapshot batch: %w", err)
+	}
+	return nil
 }
 
 func (r *PostgresSnapshotRepository) GetLatestByCoin(ctx context.Context, coinID int64) (*market.PriceSnapshot, error) {
@@ -109,5 +112,8 @@ func (r *PostgresSnapshotRepository) GetHistory(ctx context.Context, coinID int6
 		}
 		snapshots = append(snapshots, s)
 	}
-	return snapshots, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate snapshots: %w", err)
+	}
+	return snapshots, nil
 }

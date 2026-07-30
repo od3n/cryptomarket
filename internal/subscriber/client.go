@@ -175,9 +175,11 @@ func (c *Client) ServeSSE(w http.ResponseWriter, r *http.Request, _ string) {
 func writeSSEEvent(w http.ResponseWriter, event *stream.PriceEvent) error {
 	data, err := json.Marshal(event)
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal sse event: %w", err)
 	}
 
-	_, err = fmt.Fprintf(w, "event: %s\nid: %s\ndata: %s\n\n", event.EventType, event.EventID, string(data))
-	return err
+	if _, err = fmt.Fprintf(w, "event: %s\nid: %s\ndata: %s\n\n", event.EventType, event.EventID, string(data)); err != nil {
+		return fmt.Errorf("write sse event: %w", err)
+	}
+	return nil
 }

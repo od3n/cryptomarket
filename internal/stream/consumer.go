@@ -120,7 +120,7 @@ func (c *Consumer) Run(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			c.logger.Info("stream consumer stopping")
-			return ctx.Err()
+			return fmt.Errorf("consumer stopped: %w", ctx.Err())
 		default:
 		}
 
@@ -137,7 +137,7 @@ func (c *Consumer) Run(ctx context.Context) error {
 				continue
 			}
 			if ctx.Err() != nil {
-				return ctx.Err()
+				return fmt.Errorf("consumer stopped: %w", ctx.Err())
 			}
 			c.logger.Error("xreadgroup failed", slog.String("error", err.Error()))
 			if c.metrics != nil {
@@ -146,7 +146,7 @@ func (c *Consumer) Run(ctx context.Context) error {
 			// Back off on transient errors.
 			select {
 			case <-ctx.Done():
-				return ctx.Err()
+				return fmt.Errorf("consumer stopped: %w", ctx.Err())
 			case <-time.After(2 * time.Second):
 			}
 			continue

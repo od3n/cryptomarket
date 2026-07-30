@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -165,9 +166,17 @@ func (fo *FallbackOrchestrator) attemptFetch(ctx context.Context, prov Provider,
 		return IsTransient(err) && !IsPermanent(err)
 	}
 
-	return resilience.RetryWithResult(ctx, cfg, func(ctx context.Context) ([]market.MarketData, error) {
-		return prov.FetchMarketData(ctx, symbols)
+	data, err := resilience.RetryWithResult(ctx, cfg, func(ctx context.Context) ([]market.MarketData, error) {
+		fetched, fetchErr := prov.FetchMarketData(ctx, symbols)
+		if fetchErr != nil {
+			return nil, fmt.Errorf("fetch from %s: %w", prov.Name(), fetchErr)
+		}
+		return fetched, nil
 	})
+	if err != nil {
+		return nil, fmt.Errorf("attempt fetch: %w", err)
+	}
+	return data, nil
 }
 
 // setActiveProvider updates the active provider and emits metrics if changed.

@@ -35,7 +35,10 @@ func (r *PostgresCoinRepository) GetActiveCoins(ctx context.Context) ([]market.C
 		}
 		coins = append(coins, c)
 	}
-	return coins, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate coins: %w", err)
+	}
+	return coins, nil
 }
 
 func (r *PostgresCoinRepository) GetBySymbol(ctx context.Context, symbol string) (*market.Coin, error) {
