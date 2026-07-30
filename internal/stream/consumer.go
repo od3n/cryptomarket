@@ -3,6 +3,7 @@ package stream
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -133,7 +134,7 @@ func (c *Consumer) Run(ctx context.Context) error {
 		}).Result()
 
 		if err != nil {
-			if err == redis.Nil {
+			if errors.Is(err, redis.Nil) {
 				continue
 			}
 			if ctx.Err() != nil {

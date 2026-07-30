@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -73,7 +74,7 @@ func MigrateDown(ctx context.Context, db *sql.DB, migrationsDir string) error {
 	var lastMigration string
 	err := db.QueryRowContext(ctx,
 		`SELECT name FROM schema_migrations ORDER BY applied_at DESC LIMIT 1`).Scan(&lastMigration)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		fmt.Println("no migrations to reverse")
 		return nil
 	}

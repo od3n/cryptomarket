@@ -1,6 +1,7 @@
 package stream
 
 import (
+	"errors"
 	"testing"
 	"time"
 )
@@ -32,7 +33,7 @@ func TestPriceEventValidate_MissingEventID(t *testing.T) {
 		Provider:  "coingecko",
 	}
 
-	if err := event.Validate(); err != ErrMissingEventID {
+	if err := event.Validate(); !errors.Is(err, ErrMissingEventID) {
 		t.Errorf("expected ErrMissingEventID, got: %v", err)
 	}
 }
@@ -45,7 +46,7 @@ func TestPriceEventValidate_MissingEventType(t *testing.T) {
 		Provider: "coingecko",
 	}
 
-	if err := event.Validate(); err != ErrMissingEventType {
+	if err := event.Validate(); !errors.Is(err, ErrMissingEventType) {
 		t.Errorf("expected ErrMissingEventType, got: %v", err)
 	}
 }
@@ -72,7 +73,7 @@ func TestPriceEventValidate_MissingSymbol(t *testing.T) {
 		Provider:  "coingecko",
 	}
 
-	if err := event.Validate(); err != ErrMissingSymbol {
+	if err := event.Validate(); !errors.Is(err, ErrMissingSymbol) {
 		t.Errorf("expected ErrMissingSymbol, got: %v", err)
 	}
 }
@@ -85,7 +86,7 @@ func TestPriceEventValidate_MissingPrice(t *testing.T) {
 		Provider:  "coingecko",
 	}
 
-	if err := event.Validate(); err != ErrMissingPrice {
+	if err := event.Validate(); !errors.Is(err, ErrMissingPrice) {
 		t.Errorf("expected ErrMissingPrice, got: %v", err)
 	}
 }
@@ -98,7 +99,7 @@ func TestPriceEventValidate_MissingProvider(t *testing.T) {
 		PriceUSD:  "65000.50",
 	}
 
-	if err := event.Validate(); err != ErrMissingProvider {
+	if err := event.Validate(); !errors.Is(err, ErrMissingProvider) {
 		t.Errorf("expected ErrMissingProvider, got: %v", err)
 	}
 }

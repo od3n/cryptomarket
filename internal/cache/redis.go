@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -69,7 +70,7 @@ func (c *MarketCache) SetLatestBatch(ctx context.Context, entries []market.Lates
 func (c *MarketCache) GetLatest(ctx context.Context, symbol string) (*market.LatestMarketData, error) {
 	key := latestKeyPrefix + symbol
 	payload, err := c.client.Get(ctx, key).Bytes()
-	if err == redis.Nil {
+	if errors.Is(err, redis.Nil) {
 		return nil, nil
 	}
 	if err != nil {

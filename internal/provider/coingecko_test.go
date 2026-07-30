@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -64,8 +65,8 @@ func TestCoinGeckoProvider_FetchMarketData_NonSuccessStatus(t *testing.T) {
 		t.Fatal("expected error for non-200 status")
 	}
 
-	provErr, ok := err.(*ProviderError)
-	if !ok {
+	var provErr *ProviderError
+	if !errors.As(err, &provErr) {
 		t.Fatalf("expected ProviderError, got %T", err)
 	}
 	if provErr.StatusCode != http.StatusTooManyRequests {
