@@ -25,9 +25,6 @@ import os
 import subprocess
 import sys
 import time
-import urllib.request
-import urllib.error
-
 
 # Environment guard
 ALLOW_INJECTION = os.environ.get("ALLOW_FAILURE_INJECTION", "").lower() == "true"
@@ -95,14 +92,14 @@ def set_mock_mode(mode: str) -> dict:
             ["docker", "compose", "-p", COMPOSE_PROJECT,
              "exec", "-T", "mock-provider",
              "sh", "-c", f"export MOCK_MODE={mode}"],
-            capture_output=True, text=True, timeout=10
+            capture_output=True, text=True, timeout=10, check=False
         )
         # Alternative: restart with new env
         result = subprocess.run(
             ["docker", "compose", "-p", COMPOSE_PROJECT,
              "up", "-d", "--force-recreate",
              "-e", f"MOCK_MODE={mode}", "mock-provider"],
-            capture_output=True, text=True, timeout=30
+            capture_output=True, text=True, timeout=30, check=False
         )
         return {"success": result.returncode == 0, "output": result.stdout + result.stderr}
     except (subprocess.TimeoutExpired, FileNotFoundError) as e:
@@ -114,7 +111,7 @@ def docker_stop(service: str) -> dict:
     try:
         result = subprocess.run(
             ["docker", "compose", "-p", COMPOSE_PROJECT, "stop", service],
-            capture_output=True, text=True, timeout=30
+            capture_output=True, text=True, timeout=30, check=False
         )
         return {"success": result.returncode == 0, "output": result.stdout + result.stderr}
     except (subprocess.TimeoutExpired, FileNotFoundError) as e:
@@ -126,7 +123,7 @@ def docker_start(service: str) -> dict:
     try:
         result = subprocess.run(
             ["docker", "compose", "-p", COMPOSE_PROJECT, "start", service],
-            capture_output=True, text=True, timeout=30
+            capture_output=True, text=True, timeout=30, check=False
         )
         return {"success": result.returncode == 0, "output": result.stdout + result.stderr}
     except (subprocess.TimeoutExpired, FileNotFoundError) as e:

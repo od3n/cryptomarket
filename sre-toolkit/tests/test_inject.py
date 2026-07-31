@@ -1,20 +1,19 @@
 """Tests for the failure injection toolkit."""
 
-import json
 import os
 import sys
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from inject_failures import (
     SCENARIOS,
-    list_scenarios,
-    inject,
-    cleanup,
     check_guard,
+    cleanup,
+    inject,
+    list_scenarios,
 )
 
 
@@ -28,7 +27,7 @@ class TestListScenarios(unittest.TestCase):
 
     def test_list_includes_descriptions(self):
         result = list_scenarios()
-        for name, info in result["scenarios"].items():
+        for info in result["scenarios"].values():
             self.assertIn("description", info)
             self.assertIn("reversible", info)
             self.assertTrue(len(info["description"]) > 0)

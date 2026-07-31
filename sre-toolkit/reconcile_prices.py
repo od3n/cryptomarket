@@ -13,10 +13,9 @@ Usage:
 import argparse
 import json
 import sys
-from dataclasses import dataclass, asdict
-from typing import Optional
-from urllib.request import urlopen, Request
-from urllib.error import URLError, HTTPError
+from dataclasses import asdict, dataclass
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 
 @dataclass
@@ -42,7 +41,7 @@ class ReconciliationResult:
     status: str  # "ok", "warning", "error"
 
 
-def fetch_from_api(api_url: str, symbol: str) -> Optional[dict]:
+def fetch_from_api(api_url: str, symbol: str) -> dict | None:
     """Fetch market data for a symbol from the platform API."""
     url = f"{api_url.rstrip('/')}/coins/{symbol.upper()}"
     try:
@@ -54,7 +53,7 @@ def fetch_from_api(api_url: str, symbol: str) -> Optional[dict]:
         return None
 
 
-def fetch_coingecko_price(symbol: str) -> Optional[float]:
+def fetch_coingecko_price(symbol: str) -> float | None:
     """Fetch price from CoinGecko API (for direct comparison)."""
     # Map common symbols to CoinGecko IDs
     symbol_map = {
@@ -81,7 +80,7 @@ def fetch_coingecko_price(symbol: str) -> Optional[float]:
         return None
 
 
-def fetch_coincap_price(symbol: str) -> Optional[float]:
+def fetch_coincap_price(symbol: str) -> float | None:
     """Fetch price from CoinCap API (for direct comparison)."""
     # Map common symbols to CoinCap IDs
     symbol_map = {
@@ -137,7 +136,7 @@ def compare_prices(
 def reconcile(
     symbols: list,
     threshold_percent: float,
-    api_url: Optional[str] = None,
+    api_url: str | None = None,
     use_direct_providers: bool = False
 ) -> ReconciliationResult:
     """
