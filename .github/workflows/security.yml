@@ -146,7 +146,9 @@ jobs:
           curl -sSfL -o /tmp/kube-score.tar.gz \
             "https://github.com/zegl/kube-score/releases/download/v${KUBE_SCORE_VERSION}/kube-score_${KUBE_SCORE_VERSION}_linux_amd64.tar.gz"
           tar -xzf /tmp/kube-score.tar.gz -C /tmp kube-score
-          find deploy/kubernetes/base -name '*.yaml' -print0 | xargs -0 /tmp/kube-score score \
+          # namespace.yaml and friends are k8s manifests; skip Falco rule
+          # definitions, which are Falco config, not Kubernetes objects.
+          find deploy/kubernetes/base -name '*.yaml' ! -name 'falco-rules.yaml' -print0 | xargs -0 /tmp/kube-score score \
             --ignore-test container-image-tag \
             --ignore-test container-resources
 
@@ -208,10 +210,12 @@ jobs:
         uses: anchore/scan-action@v4
         with:
           image: market-${{ matrix.service }}:grype
-          fail-build: true
+          # Report-only: failing the scan truncates the SARIF, breaking the
+          # upload. Findings are surfaced in the GitHub Security tab; Trivy
+          # provides the blocking container gate in this workflow.
+          fail-build: false
           severity-cutoff: critical
           output-format: sarif
-        continue-on-error: true
 
       - name: Upload results
         uses: github/codeql-action/upload-sarif@v3
