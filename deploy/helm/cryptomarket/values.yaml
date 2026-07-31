@@ -250,3 +250,9 @@ monitoring:
     enabled: true
   tempo:
     enabled: true
+
+# Canary deployment configuration. Disabled by default; production enables
+# and tunes it in values-prod.yaml. The block must exist here so templates
+# referencing .Values.canary render with default values (helm lint).
+canary:
+  enabled: false
