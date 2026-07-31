@@ -18,7 +18,11 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.26"
+          # golangci-lint v1.56 cannot read Go 1.26 export data (unsupported
+          # export version), so pin the lint job to Go 1.21, matching the
+          # go.mod language version. The other jobs use Go 1.26 for build,
+          # test, and vulnerability-scan parity with production.
+          go-version: "1.21"
           cache: true
           cache-dependency-path: go.sum
 
@@ -59,10 +63,12 @@ jobs:
           COVERAGE=$(go tool cover -func=coverage.out | grep total: | awk '{print $3}' | tr -d '%')
           echo "Total coverage: ${COVERAGE}%"
           # Ratchet floor: set to the current baseline to prevent regressions.
-          # Raise this incrementally as tests are added (target: 85%).
-          # Weakest packages needing tests: internal/api, internal/market,
-          # internal/repository, internal/worker (currently untested).
-          THRESHOLD=45
+          # Go 1.26 counts untested packages in the coverage denominator, so the
+          # measured total is ~31% (it was ~46% under Go 1.21) for the same
+          # tests. Raise incrementally as tests are added (target: 85%). Weakest
+          # areas: internal/api, internal/market, internal/repository,
+          # internal/worker (currently untested).
+          THRESHOLD=30
           if (( $(echo "$COVERAGE < $THRESHOLD" | bc -l) )); then
             echo "ERROR: Coverage ${COVERAGE}% is below threshold ${THRESHOLD}%"
             exit 1
