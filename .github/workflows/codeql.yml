@@ -31,9 +31,11 @@ jobs:
 
       - name: Build
         run: |
-          CGO_ENABLED=0 go build ./cmd/api
-          CGO_ENABLED=0 go build ./cmd/ingestor
-          CGO_ENABLED=0 go build ./cmd/realtime
+          # Build to /dev/null: the repo has an api/ directory, so a bare
+          # 'go build ./cmd/api' collides with it when writing the binary.
+          CGO_ENABLED=0 go build -o /dev/null ./cmd/api
+          CGO_ENABLED=0 go build -o /dev/null ./cmd/ingestor
+          CGO_ENABLED=0 go build -o /dev/null ./cmd/realtime
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
