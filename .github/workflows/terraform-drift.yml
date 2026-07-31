@@ -23,9 +23,28 @@ env:
   AWS_REGION: us-east-1
 
 jobs:
+  # Skip drift detection gracefully when the deploy role secret is not
+  # configured (e.g. forks or environments without cloud credentials).
+  preflight:
+    name: AWS Preflight
+    runs-on: ubuntu-latest
+    outputs:
+      aws: ${{ steps.check.outputs.aws }}
+    steps:
+      - id: check
+        run: |
+          if [ -n "${{ secrets.AWS_DEPLOY_ROLE_ARN }}" ]; then
+            echo "aws=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "aws=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::AWS_DEPLOY_ROLE_ARN not configured; skipping drift detection."
+          fi
+
   drift-detection:
     name: Drift Check (${{ matrix.environment }})
     runs-on: ubuntu-latest
+    needs: [preflight]
+    if: needs.preflight.outputs.aws == 'true'
     strategy:
       fail-fast: false
       matrix:
