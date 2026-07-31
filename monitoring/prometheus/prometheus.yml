@@ -2,10 +2,12 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
-# Rule files for recording rules and alerts
+# Rule files for recording rules and alerts.
+# Paths are relative to this config file so promtool validation works
+# from the repo checkout and in the container image alike.
 rule_files:
-  - /etc/prometheus/rules/recording-rules.yml
-  - /etc/prometheus/rules/alerts.yml
+  - recording-rules.yml
+  - alerts.yml
 
 # Alertmanager configuration
 alerting:
