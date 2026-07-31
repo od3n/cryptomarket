@@ -122,9 +122,9 @@ jobs:
       - name: Unit tests with coverage
         run: npm test -- --ci --coverage --coverageReporters=text
 
-      - name: Check frontend coverage threshold (75%)
+      - name: Check frontend coverage threshold
         run: |
-          echo "Frontend coverage enforced via Jest configuration"
+          echo "Frontend coverage enforced via Jest configuration (ratchet floor; target 75%)"
           # Coverage thresholds are enforced by Jest --coverage flags
 
       - name: Build
