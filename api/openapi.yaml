@@ -10,12 +10,20 @@ servers:
   - url: http://localhost:8080
     description: Local development
 
+# Authentication mirrors internal/api/auth.go: requests carry either an
+# X-API-Key header or a JWT bearer token. Enforcement is controlled by
+# AUTH_ENABLED; health, readiness, and metrics endpoints are always public.
+security:
+  - ApiKeyAuth: []
+  - BearerAuth: []
+
 paths:
   /health:
     get:
       summary: Liveness check
       description: Confirms the process is alive.
       operationId: getHealth
+      security: []
       responses:
         "200":
           description: Service is alive
@@ -33,6 +41,7 @@ paths:
       summary: Readiness check
       description: Checks required dependencies (PostgreSQL, Redis).
       operationId: getReady
+      security: []
       responses:
         "200":
           description: Service is ready
@@ -198,6 +207,7 @@ paths:
       summary: Prometheus metrics
       description: Exposes Prometheus-compatible metrics.
       operationId: getMetrics
+      security: []
       responses:
         "200":
           description: Prometheus metrics in text format
@@ -248,6 +258,17 @@ paths:
                 $ref: "#/components/schemas/OperationsStatus"
 
 components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Static API key issued to trusted clients.
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: HMAC-SHA256 signed JWT verified against the configured issuer.
   schemas:
     Coin:
       type: object
