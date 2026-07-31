@@ -18,11 +18,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          # golangci-lint v1.56 cannot read Go 1.26 export data (unsupported
-          # export version), so pin the lint job to Go 1.21, matching the
-          # go.mod language version. The other jobs use Go 1.26 for build,
-          # test, and vulnerability-scan parity with production.
-          go-version: "1.21"
+          go-version: "1.26"
           cache: true
           cache-dependency-path: go.sum
 
@@ -39,9 +35,9 @@ jobs:
         run: go vet ./...
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v4
+        uses: golangci/golangci-lint-action@v7
         with:
-          version: v1.56
+          version: v2.12
 
   test:
     name: Test
@@ -218,26 +214,7 @@ jobs:
       - name: Run govulncheck
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
-          # Allowlisted, tracked vulnerabilities that do not fail the build.
-          # GO-2025-3540: go-redis <9.6.3 can return out-of-order responses only
-          # when CLIENT SETINFO times out during connection establishment (low
-          # severity). The fix requires go-redis >=9.6.3, which pulls in deps
-          # (OpenTelemetry, gopsutil) requiring Go 1.25+ and forces a
-          # golangci-lint major upgrade; tracked via the Dependabot go-redis PR.
-          ALLOWLIST="GO-2025-3540"
-          # Human-readable report for the logs (does not fail the step).
-          govulncheck ./... || true
-          # Machine-readable gate: fail only on reachable (called) vulnerabilities
-          # that are not allowlisted, so new vulnerabilities still break the build.
-          govulncheck -format json ./... > govulncheck.json || true
-          UNEXPECTED=$(jq -r 'select(.finding.trace[0].function != null) | .finding.osv' govulncheck.json \
-            | sort -u | grep -vxF "$ALLOWLIST" || true)
-          if [ -n "$UNEXPECTED" ]; then
-            echo "::error::Unexpected reachable vulnerabilities found:"
-            echo "$UNEXPECTED"
-            exit 1
-          fi
-          echo "No unexpected reachable vulnerabilities (allowlisted: $ALLOWLIST)."
+          govulncheck ./...
 
   python-sre-toolkit:
     name: Python SRE Toolkit
