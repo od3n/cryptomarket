@@ -101,7 +101,7 @@ func TestHealth(t *testing.T) {
 	h := newTestHandler()
 	router := newTestRouter(h)
 
-	req := httptest.NewRequest("GET", "/health", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/health", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -120,7 +120,7 @@ func TestCoins(t *testing.T) {
 	h := newTestHandler()
 	router := newTestRouter(h)
 
-	req := httptest.NewRequest("GET", "/coins", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/coins", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -139,7 +139,7 @@ func TestCoinBySymbol_Found(t *testing.T) {
 	h := newTestHandler()
 	router := newTestRouter(h)
 
-	req := httptest.NewRequest("GET", "/coins/BTC", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/coins/BTC", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -161,7 +161,7 @@ func TestCoinBySymbol_NotFound(t *testing.T) {
 	h := newTestHandler()
 	router := newTestRouter(h)
 
-	req := httptest.NewRequest("GET", "/coins/INVALID", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/coins/INVALID", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -174,7 +174,7 @@ func TestCoinHistory(t *testing.T) {
 	h := newTestHandler()
 	router := newTestRouter(h)
 
-	req := httptest.NewRequest("GET", "/coins/BTC/history?limit=10", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/coins/BTC/history?limit=10", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -193,7 +193,7 @@ func TestCoinHistory_NotFound(t *testing.T) {
 	h := newTestHandler()
 	router := newTestRouter(h)
 
-	req := httptest.NewRequest("GET", "/coins/INVALID/history", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/coins/INVALID/history", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -206,7 +206,7 @@ func TestRequestID_Header(t *testing.T) {
 	h := newTestHandler()
 	router := newTestRouter(h)
 
-	req := httptest.NewRequest("GET", "/health", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/health", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -219,7 +219,7 @@ func TestRequestID_PreservesExisting(t *testing.T) {
 	h := newTestHandler()
 	router := newTestRouter(h)
 
-	req := httptest.NewRequest("GET", "/health", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/health", nil)
 	req.Header.Set("X-Request-ID", "test-id-123")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)

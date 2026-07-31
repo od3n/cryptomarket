@@ -101,7 +101,7 @@ func TestHealthEndpoint(t *testing.T) {
 	metrics := newTestMetrics()
 	server := NewServer(hub, nil, metrics, testLogger())
 
-	req := httptest.NewRequest("GET", "/health", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/health", nil)
 	w := httptest.NewRecorder()
 
 	server.Health(w, req)
@@ -119,7 +119,7 @@ func TestSSEHeaders(t *testing.T) {
 	metrics := newTestMetrics()
 	server := NewServer(hub, nil, metrics, testLogger())
 
-	req := httptest.NewRequest("GET", "/events/markets", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/events/markets", nil)
 	w := httptest.NewRecorder()
 
 	// The SSE handler will block, so we test via a goroutine and cancel
@@ -154,7 +154,7 @@ func TestConnectionLimitReached(t *testing.T) {
 	metrics := newTestMetrics()
 	server := NewServer(hub, nil, metrics, testLogger())
 
-	req := httptest.NewRequest("GET", "/events/markets", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/events/markets", nil)
 	w := httptest.NewRecorder()
 
 	server.EventsMarkets(w, req)
@@ -172,7 +172,7 @@ func TestRouter(t *testing.T) {
 	router := server.Router()
 
 	// Test /health route
-	req := httptest.NewRequest("GET", "/health", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/health", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
