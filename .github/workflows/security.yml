@@ -139,10 +139,16 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Run kube-score
-        uses: zegl/kube-score-action@v1
-        with:
-          target_files: deploy/kubernetes/base/**/*.yaml
-          ignore_tests: "Container Image Tag,Container Resources"
+        # The zegl/kube-score-action marketplace action was removed upstream;
+        # install the kube-score binary directly instead.
+        run: |
+          KUBE_SCORE_VERSION=1.20.0
+          curl -sSfL -o /tmp/kube-score.tar.gz \
+            "https://github.com/zegl/kube-score/releases/download/v${KUBE_SCORE_VERSION}/kube-score_${KUBE_SCORE_VERSION}_linux_amd64.tar.gz"
+          tar -xzf /tmp/kube-score.tar.gz -C /tmp kube-score
+          find deploy/kubernetes/base -name '*.yaml' -print0 | xargs -0 /tmp/kube-score score \
+            --ignore-test container-image-tag \
+            --ignore-test container-resources
 
   kube-linter:
     name: Kube Linter
@@ -198,17 +204,19 @@ jobs:
         run: docker build -f deploy/docker/Dockerfile --build-arg SERVICE=${{ matrix.service }} -t market-${{ matrix.service }}:grype .
 
       - name: Run Grype
+        id: grype
         uses: anchore/scan-action@v4
         with:
           image: market-${{ matrix.service }}:grype
           fail-build: true
           severity-cutoff: critical
           output-format: sarif
-          output-file: grype-${{ matrix.service }}.sarif
         continue-on-error: true
 
       - name: Upload results
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
-          sarif_file: grype-${{ matrix.service }}.sarif
+          # scan-action@v4 writes the report to a fixed path exposed via the
+          # sarif step output; it has no output-file input.
+          sarif_file: ${{ steps.grype.outputs.sarif }}
