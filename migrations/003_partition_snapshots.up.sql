@@ -8,9 +8,9 @@
 
 -- Step 1: Create the partitioned table structure
 CREATE TABLE IF NOT EXISTS price_snapshots_partitioned (
-    id UUID NOT NULL DEFAULT gen_random_uuid(),
-    coin_id UUID NOT NULL REFERENCES coins(id),
-    price NUMERIC(20, 8) NOT NULL,
+    id BIGINT NOT NULL DEFAULT nextval('price_snapshots_id_seq'::regclass),
+    coin_id BIGINT NOT NULL REFERENCES coins(id) ON DELETE CASCADE,
+    price_usd NUMERIC(20, 8) NOT NULL,
     market_cap NUMERIC(30, 2),
     volume_24h NUMERIC(30, 2),
     change_24h NUMERIC(10, 4),
@@ -100,8 +100,8 @@ CREATE INDEX IF NOT EXISTS idx_snapshots_part_captured
     ON price_snapshots_partitioned (captured_at DESC);
 
 -- Step 4: Migrate existing data (if table has data)
-INSERT INTO price_snapshots_partitioned (id, coin_id, price, market_cap, volume_24h, change_24h, provider, captured_at)
-SELECT id, coin_id, price, market_cap, volume_24h, change_24h, provider, captured_at
+INSERT INTO price_snapshots_partitioned (id, coin_id, price_usd, market_cap, volume_24h, change_24h, provider, captured_at)
+SELECT id, coin_id, price_usd, market_cap, volume_24h, change_24h, provider, captured_at
 FROM price_snapshots
 WHERE EXISTS (SELECT 1 FROM price_snapshots LIMIT 1)
 ON CONFLICT DO NOTHING;
@@ -109,6 +109,7 @@ ON CONFLICT DO NOTHING;
 -- Step 5: Swap tables
 ALTER TABLE price_snapshots RENAME TO price_snapshots_old;
 ALTER TABLE price_snapshots_partitioned RENAME TO price_snapshots;
+ALTER SEQUENCE price_snapshots_id_seq OWNED BY price_snapshots.id;
 
 -- Step 6: Create function for automatic partition management
 CREATE OR REPLACE FUNCTION create_monthly_partition()
