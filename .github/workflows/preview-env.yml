@@ -2,7 +2,7 @@ name: PR Preview Environment
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, closed]
     paths:
       - "internal/**"
       - "cmd/**"
@@ -22,6 +22,7 @@ jobs:
   deploy-preview:
     name: Deploy Preview
     runs-on: ubuntu-latest
+    if: github.event.action != 'closed' && github.event.pull_request.user.login != 'dependabot[bot]'
     environment: preview
     outputs:
       url: ${{ steps.ingress.outputs.url }}
@@ -132,7 +133,7 @@ jobs:
   destroy-preview:
     name: Destroy Preview
     runs-on: ubuntu-latest
-    if: github.event.action == 'closed'
+    if: github.event.action == 'closed' && github.event.pull_request.user.login != 'dependabot[bot]'
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
