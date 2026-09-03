@@ -63,7 +63,7 @@ jobs:
             "$POSTGRES_SCHEME" "$POSTGRES_USER" "$POSTGRES_PASSWORD" \
             "$POSTGRES_HOST" "$POSTGRES_PORT" "$POSTGRES_DB" >> "$GITHUB_ENV"
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
           cache: true
