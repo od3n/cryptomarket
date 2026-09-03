@@ -108,7 +108,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "26"
           cache: "npm"
           cache-dependency-path: frontend/package-lock.json
 
@@ -193,7 +193,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "26"
 
       - name: Validate OpenAPI spec
         run: npx --yes @redocly/cli lint api/openapi.yaml
