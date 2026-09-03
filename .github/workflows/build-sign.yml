@@ -71,7 +71,7 @@ jobs:
           echo "image=${{ env.ECR_REGISTRY }}/market-${{ matrix.service }}" >> $GITHUB_OUTPUT
 
       - name: Build and push image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: deploy/docker/Dockerfile
