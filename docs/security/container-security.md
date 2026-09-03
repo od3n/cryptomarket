@@ -11,7 +11,7 @@ Container security for the Crypto Market Platform covers image building, scannin
 | Service    | Build Stage       | Runtime Stage  | User  |
 |------------|-------------------|----------------|-------|
 | Go services| golang:1.21-alpine| alpine:3.19    | 10001 |
-| Frontend   | node:20-alpine    | alpine:3.19    | 1001  |
+| Frontend   | node:26-alpine    | alpine:3.19    | 1001  |
 
 ### Hardening Practices
 

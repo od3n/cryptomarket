@@ -66,10 +66,10 @@ Browser → Next.js (port 3000)
 
 ```dockerfile
 # Multi-stage build
-FROM node:20-alpine AS builder
+FROM node:26-alpine AS builder
 # ... npm ci, npm run build
 
-FROM node:20-alpine AS runner
+FROM node:26-alpine AS runner
 # Copy standalone output
 # Run as non-root user
 ```
