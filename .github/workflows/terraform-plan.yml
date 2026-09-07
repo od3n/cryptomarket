@@ -119,7 +119,7 @@ jobs:
           } >> $GITHUB_OUTPUT
 
       - name: Comment on PR
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const output = `#### Terraform Plan — \`${{ matrix.environment }}\`
