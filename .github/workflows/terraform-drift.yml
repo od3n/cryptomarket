@@ -50,7 +50,7 @@ jobs:
       matrix:
         environment: ${{ github.event.inputs.environment == 'all' && fromJson('["dev","staging","prod"]') || fromJson(format('["{0}"]', github.event.inputs.environment || 'all')) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: hashicorp/setup-terraform@v4
         with:
