@@ -29,7 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
@@ -54,7 +54,7 @@ jobs:
     needs: [slo-gate]
     if: ${{ !inputs.skip_canary }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
@@ -129,7 +129,7 @@ jobs:
     needs: [canary-deploy]
     if: always() && (needs.canary-deploy.result == 'success' || inputs.skip_canary)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6

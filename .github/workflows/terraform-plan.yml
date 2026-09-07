@@ -23,7 +23,7 @@ jobs:
     outputs:
       environments: ${{ steps.filter.outputs.changes }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dorny/paths-filter@v3
         id: filter
@@ -43,7 +43,7 @@ jobs:
     name: Validate & Format
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: hashicorp/setup-terraform@v4
         with:
@@ -80,7 +80,7 @@ jobs:
       matrix:
         environment: ${{ fromJson(needs.detect-changes.outputs.environments) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: hashicorp/setup-terraform@v4
         with:

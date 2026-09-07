@@ -20,7 +20,7 @@ jobs:
       matrix:
         service: [api, ingestor, realtime]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build image
         run: docker build -f deploy/docker/Dockerfile --build-arg SERVICE=${{ matrix.service }} -t market-${{ matrix.service }}:scan .
@@ -43,7 +43,7 @@ jobs:
     name: Trivy IaC Scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Run Trivy IaC
         uses: aquasecurity/trivy-action@master
@@ -64,7 +64,7 @@ jobs:
     name: Gitleaks Secret Scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -80,7 +80,7 @@ jobs:
       matrix:
         service: [api, ingestor, realtime]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build image
         run: docker build -f deploy/docker/Dockerfile --build-arg SERVICE=${{ matrix.service }} -t market-${{ matrix.service }}:sbom .
@@ -102,7 +102,7 @@ jobs:
     name: Dependency Vulnerability Scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-go@v7
         with:
@@ -121,7 +121,7 @@ jobs:
     name: License Compliance
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-go@v7
         with:
@@ -136,7 +136,7 @@ jobs:
     name: Kubernetes Score
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Run kube-score
         # The zegl/kube-score-action marketplace action was removed upstream;
@@ -162,7 +162,7 @@ jobs:
     name: Kube Linter
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Run kube-linter
         uses: stackrox/kube-linter-action@v1
@@ -182,7 +182,7 @@ jobs:
     name: Checkov IaC Scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Run Checkov
         uses: bridgecrewio/checkov-action@v12
@@ -206,7 +206,7 @@ jobs:
       matrix:
         service: [api, ingestor, realtime]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build image
         run: docker build -f deploy/docker/Dockerfile --build-arg SERVICE=${{ matrix.service }} -t market-${{ matrix.service }}:grype .

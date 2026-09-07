@@ -47,7 +47,7 @@ jobs:
       matrix:
         service: [api, ingestor, realtime]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v6
